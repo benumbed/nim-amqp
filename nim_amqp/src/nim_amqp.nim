@@ -6,7 +6,8 @@
 
 import strformat
 import net
-import os
+import system
+import strutils
 
 when isMainModule:
     # let ssl_ctx = net.newContext()
@@ -16,17 +17,20 @@ when isMainModule:
 
     sock.connect("localhost", Port(5672), 5)
 
-    let header = "AMQP\0\0\9\1\c\l"
+    let header = "AMQP\0\0\9\1"
     let sent = sock.trySend(header)
 
-    echo "buffered: ", sock.hasDataBuffered()
+    
+    let data = sock.recv(64, 500)
+    if data.len() == 0:
+        echo "Response from server was empty!"
+        system.quit(QuitFailure)
 
-    let data = sock.recv(8, 500)
-    let cr = int(data[3])
-    echo fmt"Data: {data[1]:#x} 7: {cr:#x}"
+    let zero_idx_bytes = 3
+    var payload_size: uint32 = 0;
+    for i in 0..zero_idx_bytes:
+        payload_size = payload_size or (uint32(data[i+zero_idx_bytes]) shl ((zero_idx_bytes-i)*8))
+
+    echo fmt"Payload Size: {payload_size:#x}"
 
     sock.close()
-
-    # asyncnet.close(sock)
-    
-    # asyncnet.close(sock)
