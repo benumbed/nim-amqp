@@ -16,8 +16,6 @@ when isMainModule:
     sock.connect("localhost", Port(5672), 5)
     # asyncnet.wrapSocket(ssl_ctx, sock)
 
-    let meth = AMQPConnectionStart()
-
-    let resp = readFrame(sock, amqpConnectionStartFromWire)
+    let frame = sock.readFrame()
 
     sock.close()

@@ -6,10 +6,15 @@
 import strformat
 import strutils
 
-import ./protocol
+import ./methods
 import ./utils
 
-type AMQPConnectionStart* = ref object of AMQPMethod
+
+# ----------------------------------------------------------------------------------------------------------------------
+# connection::start
+# ----------------------------------------------------------------------------------------------------------------------
+
+type AMQPConnectionStart* = object of AMQPMethod
     versionMajor*: uint8
     versionMinor*: uint8
     mechanisms*: seq[string]
@@ -24,7 +29,6 @@ method `$`(this: AMQPConnectionStart): string {.base.} =
     result = res.join("")
 
 proc amqpConnectionStartFromWire*(payload: string): AMQPConnectionStart = 
-    new(result)
     var offset = 0;
 
     result.classId = extractUint16(payload, offset)
@@ -60,3 +64,18 @@ proc amqpConnectionStartFromWire*(payload: string): AMQPConnectionStart =
     let locs = payload[offset..(offset+int(loc_size-1))]
     offset += int(loc_size)
     result.locales = locs.strip().split()
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# connection::start-ok
+# ----------------------------------------------------------------------------------------------------------------------
+
+type AMQPConnectionStartOk* = object of AMQPMethod
+    clientProperties*: string
+    mechanism: string
+    response: string
+    locale: string
+
+proc toWire*(this: AMQPConnectionStartOk): string =
+    ## Converts an AMQPConnectionStartOk structure to wire format
+    return ""
