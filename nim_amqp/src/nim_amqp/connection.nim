@@ -14,13 +14,13 @@ import ./utils
 # connection::start
 # ----------------------------------------------------------------------------------------------------------------------
 
-type AMQPConnectionStart* = object of AMQPMethod
+type AMQPConnectionStart* = ref object of AMQPMethod
     versionMajor*: uint8
     versionMinor*: uint8
     mechanisms*: seq[string]
     locales*: seq[string]
-
-method `$`(this: AMQPConnectionStart): string {.base.} =
+method `$`*(this: AMQPConnectionStart): string {.base.} =
+    ## repr for AMQPConnectionStart
     var res: seq[string]
     res.insert(fmt"connection.start(version-major={this.versionMajor}, version-minor={this.versionMinor}, ", res.len)
     res.insert(fmt"server-properties=<coming soon>, ", res.len)
@@ -28,40 +28,39 @@ method `$`(this: AMQPConnectionStart): string {.base.} =
 
     result = res.join("")
 
-proc amqpConnectionStartFromWire*(payload: string): AMQPConnectionStart = 
+
+proc extractConnectionStart*(meth: AMQPMethod): AMQPConnectionStart = 
+    ## Takes an AMQPMethod, fresh from wire extraction, and converts it to an internal connection.start structure map
     var offset = 0;
 
-    result.classId = extractUint16(payload, offset)
-    assert(result.classId == 10)
-    result.className = "connection"
-    offset += 2
-
-    result.methodId = extractUint16(payload, offset)
-    assert(result.methodId == 10)
-    result.methodName = "start"
-    offset += 2
+    new(result)
+    
+    # This works because result is a ref.  So we type-shift it to AMQPMethod, then assign the fields from meth 
+    # (because we're derefrencing via [])
+    # https://nim-lang.org/docs/manual.html#types-reference-and-pointer-types
+    AMQPMethod(result)[] = meth[]
 
     # version
-    result.versionMajor = uint8(payload[offset])
+    result.versionMajor = uint8(meth.arguments[offset])
     offset += 1
-    result.versionMinor = uint8(payload[offset])
+    result.versionMinor = uint8(meth.arguments[offset])
     offset += 1
 
     # server-properties
-    let sp_size = extractUint32(payload, offset)
+    let sp_size = extractUint32(meth.arguments, offset)
     offset += 4+int(sp_size)
 
     # mechanisms
-    let mech_size = extractUint32(payload, offset)
+    let mech_size = extractUint32(meth.arguments, offset)
     offset += 4
-    let mechs = payload[offset..(offset+int(mech_size-1))]
+    let mechs = meth.arguments[offset..(offset+int(mech_size-1))]
     offset += int(mech_size)
     result.mechanisms = mechs.strip().split()
 
     # locales
-    let loc_size = extractUint32(payload, offset)
+    let loc_size = extractUint32(meth.arguments, offset)
     offset += 4
-    let locs = payload[offset..(offset+int(loc_size-1))]
+    let locs = meth.arguments[offset..(offset+int(loc_size-1))]
     offset += int(loc_size)
     result.locales = locs.strip().split()
 
@@ -76,6 +75,6 @@ type AMQPConnectionStartOk* = object of AMQPMethod
     response: string
     locale: string
 
-proc toWire*(this: AMQPConnectionStartOk): string =
+proc connectionStartOktoWire*(this: AMQPConnectionStartOk): string =
     ## Converts an AMQPConnectionStartOk structure to wire format
     return ""

@@ -4,19 +4,20 @@
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
 import net
+import streams
 
 import ./utils
 
 let AMQP_VERSION = "AMQP\0\0\9\1"
 
-type AMQPError* = object of Exception
+type AMQPError* = ref object of Exception
 type AMQPProtocolError* = object of AMQPError
 
-type AMQPFrame* = object of RootObj
+type AMQPFrame* = ref object of RootObj
     frameType*: int
     channel*: uint16
     payloadSize*: uint32
-    payload: string
+    payload*: string
 
 
 proc readFrame*(sock: Socket, read_timeout: int=500): AMQPFrame =
@@ -33,6 +34,13 @@ proc readFrame*(sock: Socket, read_timeout: int=500): AMQPFrame =
     if header.len() == 0:
         raise newException(AMQPProtocolError, "Response from server was empty")
 
+    # let hdrStream = newStringStream(header)
+    # hdrStream.setPosition(0)
+    # echo "frame type: ", hdrStream.readInt8()
+    # echo "channel: ", hdrStream.readInt16()
+    # echo "payload size: ", hdrStream.readUint32()
+
+    new(result)
     result.frameType = int(header[0])
     result.channel = extractUint16(header, 1)
     result.payloadSize = extractUint32(header, 3)
@@ -44,6 +52,7 @@ proc readFrame*(sock: Socket, read_timeout: int=500): AMQPFrame =
         raise newException(AMQPProtocolError, "Corrupt frame, missing 0xCE ending marker")
 
     result.payload = payload_plus_frame_end[0..(result.payloadSize-1)]
+    
 
 
 proc readTLSFrame*(): string = 
