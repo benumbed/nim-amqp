@@ -7,7 +7,6 @@ import strformat
 import streams
 import strutils
 import system
-import tables
 
 import ./methods
 import ./utils
@@ -31,30 +30,9 @@ method `$`*(this: AMQPConnectionStart): string {.base.} =
     ## repr for AMQPConnectionStart
     var res: seq[string]
     res.insert(fmt"connection.start(version-major={this.versionMajor}, version-minor={this.versionMinor}, ", res.len)
-    res.insert(fmt"server-properties=<coming soon>, ", res.len)
+    res.insert(fmt"server-properties={this.serverProperties}, ", res.len)
     res.insert(fmt"mechanisms={this.mechanisms}, locales={this.locales})", res.len)
     result = res.join("")
-
-
-proc extractFieldTable(stream: Stream): FieldTable =
-    ## Extracts a field-table out of `stream`
-    new(result)
-
-    while not stream.atEnd():
-        let keySize = stream.readInt8()
-        let key = stream.readStr(keySize)
-        let valType = FieldTableValueType(stream.readChar())
-        var value: FieldTableValue
-
-        if valType == ftFieldTable:
-            value = FieldTableValue(valType: ftFieldTable, tableVal: stream.readAll())
-        # TODO: Finish this
-        else:
-            let valSize = stream.readUint32Endian()
-            let intermediateValue = stream.readStr(int(valSize))
-            value = FieldTableValue()
-
-        result[key] = value
 
 
 proc extractConnectionStart*(meth: AMQPMethod): AMQPConnectionStart = 
@@ -72,8 +50,6 @@ proc extractConnectionStart*(meth: AMQPMethod): AMQPConnectionStart =
 
     # server-properties
     let sp_size = meth.arguments.readUint32Endian()
-    # Read from stream until the current position == sp_size
-    echo meth.arguments.peekStr(int(sp_size))
     result.serverProperties = extractFieldTable(newStringStream(meth.arguments.readStr(int(sp_size))))
 
     # mechanisms
@@ -96,6 +72,7 @@ type AMQPConnectionStartOk* = object of AMQPMethod
     mechanism: string
     response: string
     locale: string
+
 
 proc connectionStartOktoWire*(this: AMQPConnectionStartOk): string =
     ## Converts an AMQPConnectionStartOk structure to wire format

@@ -9,6 +9,7 @@ import unittest
 import nim_amqp/connection
 import nim_amqp/methods
 import nim_amqp/protocol
+import nim_amqp/field_table
 
 
 test "correctly builds connection.start from wire":
@@ -17,6 +18,8 @@ test "correctly builds connection.start from wire":
 
     let meth = sock.readFrame().extractMethod()
     let conn_start = meth.extractConnectionStart()
+
+    echo conn_start.serverProperties
 
     check:
         conn_start.versionMajor == 0
