@@ -19,15 +19,14 @@ test "correctly builds connection.start from wire":
 
     let meth = sock.readFrame().extractMethod()
     let conn_start = meth.extractConnectionStart()
-
-    echo conn_start.serverProperties
-
     let capabilities = conn_start.serverProperties["capabilities"].tableVal
 
     check:
         conn_start.versionMajor == 0
         conn_start.versionMinor == 9
         conn_start.mechanisms == @["PLAIN", "AMQPLAIN"]
+        # FIXME: Going to have to figure out how to support non-US locales in the tests
+        conn_start.locales == @["en_US"]
         # This depends on using RabbitMQ for the test suite, because that's what I use
         conn_start.serverProperties.hasKey("product")
         conn_start.serverProperties["product"].longStringVal == "RabbitMQ"
