@@ -8,10 +8,10 @@ import streams
 import strutils
 import system
 
-import ./methods
-import ./utils
-import ./errors
-import ./field_table
+import ../methods
+import ../utils
+import ../errors
+import ../field_table
 
 type AMQPConnectionError* = object of AMQPError
 

@@ -11,14 +11,9 @@ import nim_amqp/protocol
 
 
 test "extractMethod correctly parses a method frame":
-    var sock = newSocket(buffered=true)
-    sock.connect("localhost", Port(5672), timeout=100)
-
-    let frame = sock.readFrame()
-    let meth = frame.extractMethod()
+    let conn = newAMQPConnection("localhost", readTimeout=100)
+    let meth = conn.readFrame().extractMethod()
 
     check:
         meth.classId == 10  # connection
         meth.methodId == 10 # start
-
-    sock.close()

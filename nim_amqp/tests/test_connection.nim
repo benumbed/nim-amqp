@@ -7,17 +7,16 @@ import net
 import tables
 import unittest
 
-import nim_amqp/connection
+import nim_amqp/classes/connection
 import nim_amqp/methods
 import nim_amqp/protocol
 import nim_amqp/field_table
 
 
 test "correctly builds connection.start from wire":
-    var sock = newSocket(buffered=true)
-    sock.connect("localhost", Port(5672), timeout=100)
+    let conn = newAMQPConnection("localhost", readTimeout=100)
 
-    let meth = sock.readFrame().extractMethod()
+    let meth = conn.readFrame().extractMethod()
     let conn_start = meth.extractConnectionStart()
     let capabilities = conn_start.serverProperties["capabilities"].tableVal
 
@@ -35,5 +34,3 @@ test "correctly builds connection.start from wire":
 
         conn_start.classId == 10  # connection
         conn_start.methodId == 10 # start
-
-    sock.close()

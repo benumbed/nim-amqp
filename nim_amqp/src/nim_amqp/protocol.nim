@@ -5,43 +5,77 @@
 ##
 import net
 import streams
+import strformat
 
 import ./utils
 import ./errors
 
-let AMQP_VERSION = "AMQP\0\0\9\1"
-
 type AMQPProtocolError* = object of AMQPError
+type AMQPVersionError* = object of AMQPError
 
-type AMQPFrame* = ref object of RootObj
+type AMQPFrame* = object
     frameType*: uint8
     channel*: uint16
     payloadSize*: uint32
     payload*: Stream
 
-proc readFrame*(sock: Socket, read_timeout: int=500): AMQPFrame =
-    ## Reads an AMQP frame off the wire and checks/parses it.  This is based on the
-    ## Advanced Message Queueing Protocol Specification, Section 2.3.5
+type AMQPConnection* = object
+    readTimeout*: int
+    sock: Socket
+    version*: string
+    stream*: Stream
 
-    # FIXME: This does not belong here, it should only be called during connection setup
-    let sent = sock.trySend(AMQP_VERSION)
+
+proc negotiateVersion*(conn: AMQPConnection, amqpVersion: string, readTimeout=500)
+
+
+proc newAMQPConnection*(host: string, port = 5672, connectTimeout = 100, readTimeout = 500, amqpVersion = "AMQP\0\0\9\1"): AMQPConnection =
+    var sock = newSocket(buffered=true)
+    sock.connect(host, Port(5672), timeout=connectTimeout)
+    result.readTimeout = readTimeout
+    result.sock = sock
+    result.version = amqpVersion
+    result.stream = newStringStream()
+
+    result.negotiateVersion(amqpVersion, readTimeout)
+
+
+proc negotiateVersion(conn: AMQPConnection, amqpVersion: string, readTimeout=500) =
+    let sent = conn.sock.trySend(amqpVersion)
     if not sent:
-        raise newException(AMQPProtocolError, "Failed to send AMQP version string")
-    
-    # Read only the header
-    let header = newStringStream(sock.recv(7, read_timeout))
-    if header.atEnd():
-        raise newException(AMQPProtocolError, "Response from server was empty")
+        raise newException(AMQPVersionError, "Failed to send AMQP version string")
+   
+    # Read only the header, unless it's a version response, then we're missing a byte (will be handled elsewhere)
+    conn.stream.write(conn.sock.recv(7, readTimeout))
 
-    new(result)
-    result.frameType = header.readUint8()
-    result.channel = header.readUint16Endian()
-    result.payloadSize = header.readUint32Endian()
+    if conn.stream.peekStr(4) == "AMQP":
+        conn.stream.setPosition(7)
+        conn.stream.write(conn.sock.recv(1, readTimeout))
+        conn.stream.setPosition(0)
+        raise newException(AMQPVersionError, fmt"Server does not support {amqpVersion.readRawAMQPVersion()}, sent: {conn.stream.readStr(8).readRawAMQPVersion()}")
+    
+    conn.stream.setPosition(0)
+
+
+proc readFrame*(conn: AMQPConnection): AMQPFrame =
+    ## Reads an AMQP frame off the wire and checks/parses it.  This is based on the
+    ## Advanced Message Queueing Protocol Specification, Section 2.3.5.
+    ## `amqpVersion` must be in dotted notation
+
+    # Version negotiation pre-fetches 7B, so we need to account for that
+    if conn.stream.atEnd():
+        conn.stream.write(conn.sock.recv(7, conn.readTimeout))
+        if conn.stream.atEnd():
+            raise newException(AMQPProtocolError, "Failed to read frame from server")
+
+    result.frameType = conn.stream.readUint8()
+    result.channel = conn.stream.readUint16Endian()
+    result.payloadSize = conn.stream.readUint32Endian()
 
     # Frame-end is a single octet that must be set to 0xCE
-    let payload_plus_frame_end = sock.recv(int(result.payloadSize)+1, read_timeout)
-    # Ensure the frame-end octet matches the spec
+    let payload_plus_frame_end = conn.sock.recv(int(result.payloadSize)+1, conn.readTimeout)
     
+    # Ensure the frame-end octet matches the spec
     if byte(payload_plus_frame_end[result.payloadSize]) != 0xCE:
         raise newException(AMQPProtocolError, "Corrupt frame, missing 0xCE ending marker")
 
