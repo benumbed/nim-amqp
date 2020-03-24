@@ -10,6 +10,7 @@ import system
 import tables
 
 import ./utils
+import ./errors
 
 # Maps field-table value types from the AMQP standard
 type FieldTableValueType* = enum
@@ -47,7 +48,7 @@ type
         of ftLongUint: uint32Val*: uint32
         of ftLongLongInt: int64Val*: int64
         of ftLongLongUint: uint64Val*: uint64
-        of ftFloat: floatVal*: float
+        of ftFloat: floatVal*: float32
         of ftDouble: doubleVal*: float64
         of ftDecimalValue: decimalVal*: FieldTableDecimal
         of ftShortString: shortStringVal*: string
@@ -62,13 +63,16 @@ type
         decimalLoc: uint8
         value: uint32
 
-#
+# ----------------------------------------------------------------------------------------------------------------------
 # Forward Declarations
-#
+# ----------------------------------------------------------------------------------------------------------------------
 proc `$`*(this: FieldTableValue): string
 proc extractFieldTableValue(stream: Stream, valType: FieldTableValueType): FieldTableValue
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# String reprs
+# ----------------------------------------------------------------------------------------------------------------------
 proc toStrSeq(this: FieldTable): seq[string] =
     result.insert("\p")
     for key,value in this:
@@ -77,6 +81,9 @@ proc toStrSeq(this: FieldTable): seq[string] =
 proc `$`*(this: FieldTable): string =
     result = this.toStrSeq.join("\p")
 
+proc `$`*(this:FieldTableDecimal): string =
+    var digits = $this.value
+    result = fmt"{digits[0..(this.decimalLoc-1)]}.{this.decimalLoc..(len(digits)-1)}"
 
 proc `$`*(this: FieldTableValue): string =
     case this.valType:
@@ -103,6 +110,9 @@ proc `$`*(this: FieldTableValue): string =
         of ftBadField: result = $this.badField
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Readers/Extractors
+# ----------------------------------------------------------------------------------------------------------------------
 
 proc extractFieldTable*(stream: Stream): FieldTable =
     ## Extracts a field-table out of `stream`
@@ -114,9 +124,9 @@ proc extractFieldTable*(stream: Stream): FieldTable =
 
         result[key] = stream.extractFieldTableValue(valType)
 
-
     
 proc extractFieldTableValue(stream: Stream, valType: FieldTableValueType): FieldTableValue =
+    ## Extracts a field-table value of `valType` from `stream` into a Nim type or data-structure
     new(result)
     case valType:
         of ftBool:
@@ -141,18 +151,20 @@ proc extractFieldTableValue(stream: Stream, valType: FieldTableValueType): Field
             result = FieldTableValue(valType: valType, floatVal: stream.readFloatEndian())
         of ftDouble: 
             result = FieldTableValue(valType: valType, doubleVal: stream.readFloat64Endian())
-        # FIXME: Hardcoded because I don't want to deal with this
         of ftDecimalValue:
-            result = FieldTableValue(valType: valType, decimalVal: FieldTableDecimal(decimalLoc: 0, value: 0))
+            result = FieldTableValue(valType: valType, decimalVal: FieldTableDecimal(decimalLoc: stream.readUint8(), 
+                                    value: stream.readUint32Endian()))
         of ftShortString:
             result = FieldTableValue(valType: valType, shortStringVal: stream.readStr(int(stream.readUint8())))
         of ftLongString:
             result = FieldTableValue(valType: valType, longStringVal: stream.readStr(int(stream.readUint32Endian())))
-        # FIXME: Hardcoded
+        # FIXME: Not Implemented
         of ftFieldArray:
-            result = FieldTableValue(valType: valType, arrayVal: @[])
+            raise newException(AMQPNotImplementedError, "Field arrays have not be implemented!")
+            # result = FieldTableValue(valType: valType, arrayVal: @[])
         of ftFieldTable:
-            result = FieldTableValue(valType: valType, tableVal: extractFieldTable(newStringStream(stream.readStr(int(stream.readUint32Endian())))))
+            result = FieldTableValue(valType: valType, tableVal: extractFieldTable(newStringStream(stream.readStr(
+                                    int(stream.readUint32Endian())))))
         of ftTimestamp:
             result = FieldTableValue(valType: valType, timestampVal: stream.readUint64Endian())
         of ftNoField:

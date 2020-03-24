@@ -4,6 +4,7 @@
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
 import net
+import tables
 import unittest
 
 import nim_amqp/connection
@@ -21,10 +22,17 @@ test "correctly builds connection.start from wire":
 
     echo conn_start.serverProperties
 
+    let capabilities = conn_start.serverProperties["capabilities"].tableVal
+
     check:
         conn_start.versionMajor == 0
         conn_start.versionMinor == 9
         conn_start.mechanisms == @["PLAIN", "AMQPLAIN"]
+        # This depends on using RabbitMQ for the test suite, because that's what I use
+        conn_start.serverProperties.hasKey("product")
+        conn_start.serverProperties["product"].longStringVal == "RabbitMQ"
+        capabilities.hasKey("direct_reply_to")
+        capabilities.hasKey("basic.nack")
 
         conn_start.classId == 10  # connection
         conn_start.methodId == 10 # start

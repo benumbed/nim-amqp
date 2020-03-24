@@ -5,3 +5,4 @@
 ##
 
 type AMQPError* = object of Exception
+type AMQPNotImplementedError* = object of AMQPError
