@@ -20,7 +20,7 @@ test "correctly builds connection.start from wire":
     let meth = sock.readFrame().extractMethod()
     let conn_start = meth.extractConnectionStart()
 
-    echo conn_start.serverProperties
+    echo conn_start.locales
 
     let capabilities = conn_start.serverProperties["capabilities"].tableVal
 
