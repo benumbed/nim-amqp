@@ -16,10 +16,6 @@ when defined(gcc) or defined(llvm_gcc) or defined(clang):
     func swapUint16(val: uint16): uint16 {.importc: "__builtin_bswap16", nodecl.}
     func swapUint32(val: uint32): uint32 {.importc: "__builtin_bswap32", nodecl.}
     func swapUint64(val: uint64): uint64 {.importc: "__builtin_bswap64", nodecl.}
-    # Placeholders
-    func swapInt16(val: int16): int16 {.importc: "__builtin_bswap16", nodecl.}
-    func swapInt32(val: int32): int32 {.importc: "__builtin_bswap32", nodecl.}
-    func swapInt64(val: int64): int64 {.importc: "__builtin_bswap64", nodecl.}
 elif defined(vcc):
     proc swapUint16(a: uint16): uint16 {.importc: "_byteswap_ushort", cdecl, header: "<intrin.h>".}
     proc swapUint32(a: uint32): uint32 {.importc: "_byteswap_ulong", cdecl, header: "<intrin.h>".}
@@ -37,23 +33,21 @@ proc readUint64Endian*(stream: Stream): uint64 =
     ## Reads a uint64 off the stream, and if the current arch is littleEndian, converts it
     result = if cpuEndian == littleEndian: swapUint64(stream.readUint64()) else: stream.readUint64()
      
-# Placeholders
 proc readInt16Endian*(stream: Stream): int16 =
     ## Reads a int16 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: swapInt16(stream.readInt16()) else: stream.readInt16()
+    result = if cpuEndian == littleEndian: int16(swapUint16(stream.readUint16())) else: stream.readInt16()
 
 proc readInt32Endian*(stream: Stream): int32 =
     ## Reads a int32 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: swapInt32(stream.readInt32()) else: stream.readInt32()
+    result = if cpuEndian == littleEndian: int32(swapUint32(stream.readUint32())) else: stream.readInt32()
 
 proc readInt64Endian*(stream: Stream): int64 =
     ## Reads a int64 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: swapInt64(stream.readInt64()) else: stream.readInt64()
+    result = if cpuEndian == littleEndian: int64(swapUint64(stream.readUint64())) else: stream.readInt64()
 
-# FIXME: These won't work due to uint
-proc readFloatEndian*(stream: Stream): float =
+proc readFloatEndian*(stream: Stream): float32 =
     ## Reads a float32 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: float(swapUint32(stream.readUint32())) else: stream.readFloat32()
+    result = if cpuEndian == littleEndian: float32(swapUint32(stream.readUint32())) else: stream.readFloat32()
 
 proc readFloat64Endian*(stream: Stream): float64 =
     ## Reads a float32 off the stream, and if the current arch is littleEndian, converts it
