@@ -20,13 +20,13 @@ type AMQPConnectionError* = object of AMQPError
 # connection::start
 # ----------------------------------------------------------------------------------------------------------------------
 
-type AMQPConnectionStart* = ref object of AMQPMethod
+type MethodConnectionStart* = ref object of AMQPMethod
     versionMajor*: uint8
     versionMinor*: uint8
     serverProperties*: FieldTable
     mechanisms*: seq[string]
     locales*: seq[string]
-method `$`*(this: AMQPConnectionStart): string {.base.} =
+method `$`*(this: MethodConnectionStart): string {.base.} =
     ## repr for AMQPConnectionStart
     var res: seq[string]
     res.insert(fmt"connection.start(version-major={this.versionMajor}, version-minor={this.versionMinor}, ", res.len)
@@ -35,7 +35,7 @@ method `$`*(this: AMQPConnectionStart): string {.base.} =
     result = res.join("")
 
 
-proc extractConnectionStart*(meth: AMQPMethod): AMQPConnectionStart = 
+proc extractConnectionStart*(meth: AMQPMethod): MethodConnectionStart = 
     ## Takes an AMQPMethod, fresh from wire extraction, and converts it to an internal connection.start structure map
     new(result)
     
@@ -67,13 +67,47 @@ proc extractConnectionStart*(meth: AMQPMethod): AMQPConnectionStart =
 # connection::start-ok
 # ----------------------------------------------------------------------------------------------------------------------
 
-type AMQPConnectionStartOk* = object of AMQPMethod
-    clientProperties*: string
+type MethodConnectionStartOk* = object of AMQPMethod
+    clientProperties*: FieldTable
     mechanism: string
     response: string
     locale: string
 
 
-proc connectionStartOktoWire*(this: AMQPConnectionStartOk): string =
+proc toWire*(this: MethodConnectionStartOk): string =
     ## Converts an AMQPConnectionStartOk structure to wire format
     return ""
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# connection::secure
+# ----------------------------------------------------------------------------------------------------------------------
+type MethodConnectionSecure* = object of AMQPMethod
+    challenge: string
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# connection::tune
+# ----------------------------------------------------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------------------------------------------------
+# connection::tune-ok
+# ----------------------------------------------------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------------------------------------------------
+# connection::open
+# ----------------------------------------------------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------------------------------------------------
+# connection::close
+# ----------------------------------------------------------------------------------------------------------------------
+type MethodConnectionClose* = ref object of AMQPMethod
+    reply_code*: uint16
+    reply_text*: string
+
+proc extractConnectionClose*(meth: AMQPMethod): MethodConnectionClose =
+    return result
+
+# ----------------------------------------------------------------------------------------------------------------------
+# connection::close-ok
+# ----------------------------------------------------------------------------------------------------------------------

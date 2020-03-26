@@ -11,13 +11,10 @@ import ./errors
 
 type AMQPMethodError* = object of AMQPError
 
-type AMQPClass* = ref object of RootObj
+   
+type AMQPMethod* = ref object of RootObj
     classId*: uint16
-    className*: string
-    
-type AMQPMethod* = ref object of AMQPClass
     methodId*: uint16
-    methodName*: string
     arguments*: Stream
 
 proc extractMethod*(frame: AMQPFrame): AMQPMethod =

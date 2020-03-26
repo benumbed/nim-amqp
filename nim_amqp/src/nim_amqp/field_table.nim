@@ -109,6 +109,14 @@ proc `$`*(this: FieldTableValue): string =
         of ftNoField: result = $this.noField
         of ftBadField: result = $this.badField
 
+# proc toWire(this: FieldTable): string = 
+#     ## Converts a FieldTable structure to it's wire format and returns the resulting string
+#     var ftSize: uint32 = 0
+
+#     # keySize|key|valType(char)|value
+#     for key, value in this:
+#         key.len()
+        
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Readers/Extractors

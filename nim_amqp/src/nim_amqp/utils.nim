@@ -5,11 +5,19 @@
 ##
 import streams
 import strformat
+import strutils
 import system
 
 type StrWithError* = tuple[output: string, error: bool]
 
 proc readRawAMQPVersion*(ver: string): string = fmt"{ver[0..3]}{int(ver[4])}{int(ver[5])}{int(ver[6])}{int(ver[7])}"
+proc wireAMQPVersion*(ver: string): string =
+    ## Converts a dotted-style version string to the proper AMQP wire version
+    result = "AMQP"
+    result.add(char(0))
+    for tok in ver.split("."):
+        result.add(char(tok.parseUInt()))
+
 
 # Inspired by https://github.com/status-im/nim-stew/blob/1c4293b3e754b5ea68a188b60b192801162cd44e/stew/endians2.nim#L29
 when defined(gcc) or defined(llvm_gcc) or defined(clang):
