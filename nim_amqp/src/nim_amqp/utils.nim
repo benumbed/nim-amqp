@@ -19,44 +19,87 @@ proc wireAMQPVersion*(ver: string): string =
         result.add(char(tok.parseUInt()))
 
 
+template uintSelect*[T](value: T): auto =
+    ## So this basically just takes an incoming int type, and swaps it for a uint of the same bit depth
+    when type(T) is (int64 or float64 or float):
+        uint64    
+    elif type(T) is (int32 or float32):
+        uint32
+    elif type(T) is int16:
+        uint16
+
 # Inspired by https://github.com/status-im/nim-stew/blob/1c4293b3e754b5ea68a188b60b192801162cd44e/stew/endians2.nim#L29
 when defined(gcc) or defined(llvm_gcc) or defined(clang):
-    func swapUint16(val: uint16): uint16 {.importc: "__builtin_bswap16", nodecl.}
-    func swapUint32(val: uint32): uint32 {.importc: "__builtin_bswap32", nodecl.}
-    func swapUint64(val: uint64): uint64 {.importc: "__builtin_bswap64", nodecl.}
+    func swapUint(val: uint16): uint16 {.importc: "__builtin_bswap16", nodecl.}
+    func swapUint(val: uint32): uint32 {.importc: "__builtin_bswap32", nodecl.}
+    func swapUint(val: uint64): uint64 {.importc: "__builtin_bswap64", nodecl.}
 elif defined(vcc):
-    proc swapUint16(a: uint16): uint16 {.importc: "_byteswap_ushort", cdecl, header: "<intrin.h>".}
-    proc swapUint32(a: uint32): uint32 {.importc: "_byteswap_ulong", cdecl, header: "<intrin.h>".}
-    proc swapUint64(a: uint64): uint64 {.importc: "_byteswap_uint64", cdecl, header: "<intrin.h>".}
+    proc swapUint(a: uint16): uint16 {.importc: "_byteswap_ushort", cdecl, header: "<intrin.h>".}
+    proc swapUint(a: uint32): uint32 {.importc: "_byteswap_ulong", cdecl, header: "<intrin.h>".}
+    proc swapUint(a: uint64): uint64 {.importc: "_byteswap_uint64", cdecl, header: "<intrin.h>".}
 
 proc readUint16Endian*(stream: Stream): uint16 =
     ## Reads a uint16 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: swapUint16(stream.readUint16()) else: stream.readUint16()
+    result = if cpuEndian == littleEndian: swapUint(stream.readUint16()) else: stream.readUint16()
 
 proc readUint32Endian*(stream: Stream): uint32 =
     ## Reads a uint32 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: swapUint32(stream.readUint32()) else: stream.readUint32()
+    result = if cpuEndian == littleEndian: swapUint(stream.readUint32()) else: stream.readUint32()
 
 proc readUint64Endian*(stream: Stream): uint64 =
     ## Reads a uint64 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: swapUint64(stream.readUint64()) else: stream.readUint64()
+    result = if cpuEndian == littleEndian: swapUint(stream.readUint64()) else: stream.readUint64()
      
 proc readInt16Endian*(stream: Stream): int16 =
     ## Reads a int16 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: int16(swapUint16(stream.readUint16())) else: stream.readInt16()
+    result = if cpuEndian == littleEndian: int16(swapUint(stream.readUint16())) else: stream.readInt16()
 
 proc readInt32Endian*(stream: Stream): int32 =
     ## Reads a int32 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: int32(swapUint32(stream.readUint32())) else: stream.readInt32()
+    result = if cpuEndian == littleEndian: int32(swapUint(stream.readUint32())) else: stream.readInt32()
 
 proc readInt64Endian*(stream: Stream): int64 =
     ## Reads a int64 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: int64(swapUint64(stream.readUint64())) else: stream.readInt64()
+    result = if cpuEndian == littleEndian: int64(swapUint(stream.readUint64())) else: stream.readInt64()
 
 proc readFloatEndian*(stream: Stream): float32 =
     ## Reads a float32 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: float32(swapUint32(stream.readUint32())) else: stream.readFloat32()
+    result = if cpuEndian == littleEndian: float32(swapUint(stream.readUint32())) else: stream.readFloat32()
 
 proc readFloat64Endian*(stream: Stream): float64 =
     ## Reads a float32 off the stream, and if the current arch is littleEndian, converts it
-    result = if cpuEndian == littleEndian: float64(swapUint64(stream.readUint64())) else: stream.readFloat64()    
+    result = if cpuEndian == littleEndian: float64(swapUint(stream.readUint64())) else: stream.readFloat64()
+
+
+template streamReaderSelect*[T](v: T): auto =
+    ## Selects which stream reader to use based on the type of `v`
+    when type(T) is (int64 or uint64 or float64 or float):
+        stream.readUint64()  
+    elif type(T) is (int32 or uint32 or float32):
+        stream.readUint32()
+    elif type(T) is (int16 or uint16):
+        stream.readUint16()
+
+template selectSwapper[T](v: T): auto =
+    ## Selects what swapping call chain to use based on the type of `v`
+    when type(T) is (int16 or int32 or int64 or float or float32 or float64):
+        T(swapUint(streamReaderSelect(v)))
+    else:
+        swapUint(streamReaderSelect(v))
+
+proc readAndReturnXintEndian*[T](stream: Stream, value: T): T =
+    ## Will read a (u)int, flip it's endianness and return it back
+    result = if cpuEndian == littleEndian: selectSwapper(value) else: selectSwapper(value)
+
+proc readXintEndian*[T](stream: Stream, value: var T) =
+    ## Will read a (u)int, flip it's endianness and set `value` to the read and flipped value
+    value = if cpuEndian == littleEndian: selectSwapper(value) else: selectSwapper(value)
+
+
+proc intEndian*[T](value: T): T {.inline.} =
+    ## Returns the incoming int type with it's endianness flipped
+    return cast[T](swapUint(cast[uintSelect(value)](value)))
+
+proc uintEndian*[T](value: T): T {.inline.} =
+    ## Returns the incoming uint type with it's endianness flipped
+    return swapUint(value)

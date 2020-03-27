@@ -20,6 +20,8 @@ test "correctly builds connection.start from wire":
     let conn_start = meth.extractConnectionStart()
     let capabilities = conn_start.serverProperties["capabilities"].tableVal
 
+    echo conn_start.serverProperties
+
     check:
         conn_start.versionMajor == 0
         conn_start.versionMinor == 9

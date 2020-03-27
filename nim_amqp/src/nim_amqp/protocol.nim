@@ -72,8 +72,8 @@ proc readFrame*(conn: AMQPConnection): AMQPFrame =
             raise newException(AMQPProtocolError, "Failed to read frame from server")
 
     result.frameType = conn.stream.readUint8()
-    result.channel = conn.stream.readUint16Endian()
-    result.payloadSize = conn.stream.readUint32Endian()
+    conn.stream.readXintEndian(result.channel)
+    conn.stream.readXintEndian(result.payloadSize)
 
     # Frame-end is a single octet that must be set to 0xCE
     let payload_plus_frame_end = conn.sock.recv(int(result.payloadSize)+1, conn.readTimeout)
