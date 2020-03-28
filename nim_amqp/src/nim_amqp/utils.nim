@@ -10,8 +10,10 @@ import system
 
 type StrWithError* = tuple[output: string, error: bool]
 
-proc readRawAMQPVersion*(ver: string): string = fmt"{ver[0..3]}{int(ver[4])}{int(ver[5])}{int(ver[6])}{int(ver[7])}"
-proc wireAMQPVersion*(ver: string): string =
+proc readRawAMQPVersion*(ver: string): string {.inline.} = 
+    fmt"{ver[0..3]}{int(ver[4])}{int(ver[5])}{int(ver[6])}{int(ver[7])}"
+
+proc wireAMQPVersion*(ver: string): string {.inline.} =
     ## Converts a dotted-style version string to the proper AMQP wire version
     result = "AMQP"
     result.add(char(0))
@@ -21,11 +23,11 @@ proc wireAMQPVersion*(ver: string): string =
 
 template uintSelect*[T](value: T): auto =
     ## So this basically just takes an incoming int type, and swaps it for a uint of the same bit depth
-    when type(T) is (int64 or float64 or float):
+    when sizeof(T) == 8:
         uint64    
-    elif type(T) is (int32 or float32):
+    elif sizeof(T) == 4:
         uint32
-    elif type(T) is int16:
+    elif sizeof(T) == 2:
         uint16
 
 # Inspired by https://github.com/status-im/nim-stew/blob/1c4293b3e754b5ea68a188b60b192801162cd44e/stew/endians2.nim#L29
@@ -72,12 +74,12 @@ proc readFloat64Endian*(stream: Stream): float64 =
 
 
 template streamReaderSelect*[T](v: T): auto =
-    ## Selects which stream reader to use based on the type of `v`
-    when type(T) is (int64 or uint64 or float64 or float):
+    ## Selects which stream reader to use based on the byte depth of `v`
+    when sizeof(T) == 8:
         stream.readUint64()  
-    elif type(T) is (int32 or uint32 or float32):
+    elif sizeof(T) == 4:
         stream.readUint32()
-    elif type(T) is (int16 or uint16):
+    elif sizeof(T) == 2:
         stream.readUint16()
 
 template selectSwapper[T](v: T): auto =
@@ -87,19 +89,23 @@ template selectSwapper[T](v: T): auto =
     else:
         swapUint(streamReaderSelect(v))
 
-proc readAndReturnXintEndian*[T](stream: Stream, value: T): T =
+proc readAndReturnNumericEndian*[T](stream: Stream, value: T): T =
     ## Will read a (u)int, flip it's endianness and return it back
     result = if cpuEndian == littleEndian: selectSwapper(value) else: selectSwapper(value)
 
-proc readXintEndian*[T](stream: Stream, value: var T) =
+proc readNumericEndian*[T](stream: Stream, value: var T) =
     ## Will read a (u)int, flip it's endianness and set `value` to the read and flipped value
     value = if cpuEndian == littleEndian: selectSwapper(value) else: selectSwapper(value)
 
 
-proc intEndian*[T](value: T): T {.inline.} =
-    ## Returns the incoming int type with it's endianness flipped
-    return cast[T](swapUint(cast[uintSelect(value)](value)))
+proc swapEndian*[T](value: T, srcEndian = cpuEndian, retEndian = bigEndian): T {.inline.} =
+    ## Returns the incoming int type with it's endianness flipped.  Defaults to returning bigEndian.
+    # This just makes sure we don't swap endianness if they already match, probably rare, but
+    # bigEndian machines do exist.
+    if srcEndian == retEndian:
+        return value
 
-proc uintEndian*[T](value: T): T {.inline.} =
-    ## Returns the incoming uint type with it's endianness flipped
-    return swapUint(value)
+    when type(T) is (uint16 or uint32 or uint64 or uint):
+        return swapUint(value)
+    else:
+        return cast[T](swapUint(cast[uintSelect(value)](value)))
