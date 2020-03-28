@@ -88,3 +88,6 @@ proc readFrame*(conn: AMQPConnection): AMQPFrame =
 proc readTLSFrame*(): string = 
     ## Reads an AMQP frame from a TLS encrypted session
     raise newException(Exception, "not implemented")
+
+proc writeFrame*(conn: AMQPConnection, frame: AMQPFrame) =
+    ## Writes an AMQP frame to a socket

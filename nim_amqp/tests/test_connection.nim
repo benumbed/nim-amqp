@@ -34,3 +34,11 @@ test "correctly builds connection.start from wire":
 
         conn_start.classId == 10  # connection
         conn_start.methodId == 10 # start
+
+test "connection.start-ok":
+    let startOk = newMethodConnectionStartOk()
+    startOk.response = ""
+    startOk.mechanism = "PLAIN"
+    startOk.locale = "en_US"
+
+    let startOkWire = startOk.toWire()

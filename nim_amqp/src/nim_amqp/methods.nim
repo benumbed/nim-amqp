@@ -24,3 +24,6 @@ proc extractMethod*(frame: AMQPFrame): AMQPMethod =
     result.classId = frame.payload.readUint16Endian()
     result.methodId = frame.payload.readUint16Endian()
     result.arguments = frame.payload
+
+proc toWire*(this: AMQPMethod): Stream =
+    ## Converts an AMQPMethod to a stream suitable for transmission to the sever

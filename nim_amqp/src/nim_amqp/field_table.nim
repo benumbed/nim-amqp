@@ -115,15 +115,13 @@ proc `$`*(this: FieldTableValue): string =
         of ftNoField: result = $this.noField
         of ftBadField: result = $this.badField
 
-proc toWire(this: FieldTable): Stream = 
+proc toWire*(this: FieldTable): Stream = 
     ## Converts a FieldTable structure to it's wire format and returns the resulting string
-    result.setPosition(0)
-    let lenSz = len(this)
-    echo fmt"Table size from len: {lenSz}"
+    result = newStringStream()
 
     # keySize|key|valType(char)|<val size>|value
     for key, value in this:
-        result.write(uint8(key.len()))
+        result.write(uint8(len(key)))
         result.write(key)
         result.write(value.valType)
 

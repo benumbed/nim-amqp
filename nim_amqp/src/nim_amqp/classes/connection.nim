@@ -7,6 +7,7 @@ import strformat
 import streams
 import strutils
 import system
+import tables
 
 import ../methods
 import ../utils
@@ -67,16 +68,35 @@ proc extractConnectionStart*(meth: AMQPMethod): MethodConnectionStart =
 # connection::start-ok
 # ----------------------------------------------------------------------------------------------------------------------
 
-type MethodConnectionStartOk* = object of AMQPMethod
+type MethodConnectionStartOk* = ref object of AMQPMethod
     clientProperties*: FieldTable
-    mechanism: string
-    response: string
-    locale: string
+    mechanism*: string
+    response*: string
+    locale*: string
+
+proc newMethodConnectionStartOk*(): MethodConnectionStartOk =
+    ## Creates a new MethodConnectionStartOk with the classId and methodId set properly
+    new(result)
+
+    result.classId = 10
+    result.methodId = 11
+    result.clientProperties = new(FieldTable)
 
 
-proc toWire*(this: MethodConnectionStartOk): string =
+proc toWire*(this: MethodConnectionStartOk): Stream =
     ## Converts an AMQPConnectionStartOk structure to wire format
-    return ""
+    result = newStringStream()
+    this.clientProperties["product"] = FieldTableValue(valType: ftShortString, shortStringVal: "nim-amqp")
+
+    let cpft = this.clientProperties.toWire().readAll()
+    result.write(swapEndian(uint32(len(cpft))))
+    result.write(cpft)
+    result.write(uint8(len(this.mechanism)))
+    result.write(this.mechanism)
+    result.write(uint32(len(this.response)))
+    result.write(this.response)
+    result.write(uint8(len(this.locale)))
+    result.write(this.locale)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
