@@ -98,7 +98,13 @@ proc `$`*(this: FieldTableValue): string =
         of ftLongLongUint: result = $this.uint64Val
         of ftFloat: result = $this.floatVal
         of ftDouble: result = $this.doubleVal
-        of ftDecimalValue: result = "0.0"
+        of ftDecimalValue: 
+            if this.decimalVal.decimalLoc == 0:
+                result = $this.decimalVal.value
+            
+            let valStr = $this.decimalVal.value
+            result = [valStr[0..(this.decimalVal.decimalLoc-1)], ".", valStr[this.decimalVal.decimalLoc..(
+                     sizeof(valStr)-1)]].join()
         of ftShortString: result = $this.shortStringVal
         of ftLongString: result = $this.longStringVal
         of ftFieldArray: result = $this.arrayVal
