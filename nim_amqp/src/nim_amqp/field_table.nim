@@ -115,6 +115,7 @@ proc `$`*(this: FieldTableValue): string =
         of ftNoField: result = $this.noField
         of ftBadField: result = $this.badField
 
+
 proc toWire*(this: FieldTable): Stream = 
     ## Converts a FieldTable structure to it's wire format and returns the resulting string
     result = newStringStream()

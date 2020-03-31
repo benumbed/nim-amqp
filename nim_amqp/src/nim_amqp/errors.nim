@@ -4,5 +4,5 @@
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
 
-type AMQPError* = object of Exception
+type AMQPError* = ref object of Exception
 type AMQPNotImplementedError* = object of AMQPError
