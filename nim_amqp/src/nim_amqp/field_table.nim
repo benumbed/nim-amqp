@@ -157,6 +157,8 @@ proc toWire*(this: FieldTable): Stream =
             of ftTimestamp: result.write(swapEndian(value.timestampVal))
             else:
                 discard
+    
+    result.setPosition(0)
         
 
 # ----------------------------------------------------------------------------------------------------------------------

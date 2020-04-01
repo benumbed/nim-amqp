@@ -8,8 +8,6 @@ import strformat
 import strutils
 import system
 
-type StrWithError* = tuple[output: string, error: bool]
-
 proc readRawAMQPVersion*(ver: string): string {.inline.} = 
     fmt"{ver[0..3]}{int(ver[4])}{int(ver[5])}{int(ver[6])}{int(ver[7])}"
 

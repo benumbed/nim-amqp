@@ -20,6 +20,7 @@ proc negotiateVersion*(conn: AMQPConnection, amqpVersion: string, readTimeout=50
 
 
 proc newAMQPConnection*(host, username, password: string, port = 5672, connectTimeout = 100, readTimeout = 500, amqpVersion = "0.9.1"): AMQPConnection =
+    new(result)
     result.sock = newSocket(buffered=true)
     result.sock.connect(host, Port(5672), timeout=connectTimeout)
     result.readTimeout = readTimeout
@@ -28,8 +29,10 @@ proc newAMQPConnection*(host, username, password: string, port = 5672, connectTi
     result.username = username
     result.password = password
 
+    result.frameHandler = handleFrame
+    result.frameSender = sendFrame
+
     result.negotiateVersion(amqpVersion, readTimeout)
-    result.handleFrame()
 
 
 proc negotiateVersion(conn: AMQPConnection, amqpVersion: string, readTimeout=500) =
@@ -48,3 +51,9 @@ proc negotiateVersion(conn: AMQPConnection, amqpVersion: string, readTimeout=500
         conn.stream.write(conn.sock.recv(1, readTimeout))
         conn.stream.setPosition(0)
         raise newException(AMQPVersionError, fmt"Server does not support {amqpVersion}, sent: {conn.stream.readStr(8).readRawAMQPVersion()}")
+    
+    conn.version = amqpVersion
+    conn.negoComplete = true
+
+    # Handle the rest of the connection initiation
+    conn.frameHandler(conn)

@@ -7,6 +7,8 @@ import net
 import streams
 import tables
 
+import ./errors
+
 type AMQPFramePayloadType* = enum
     ptStream,
     ptString
@@ -19,7 +21,7 @@ type AMQPFrame* = ref object
     of ptStream: payloadStream*: Stream
     of ptString: payloadString*: string
 
-type AMQPConnection* = object
+type AMQPConnection* = ref object
     readTimeout*: int
     sock*: Socket
     version*: string
@@ -28,6 +30,9 @@ type AMQPConnection* = object
     stream*: Stream
     username*: string
     password*: string
+    negoComplete*: bool
+    frameHandler*: proc(conn: AMQPConnection)
+    frameSender*: proc (conn: AMQPConnection, frame: AMQPFrame): StrWithError
 
 type DispatchMethod* = proc(conn: AMQPConnection, stream: Stream)
 type MethodMap* = Table[uint16, DispatchMethod]

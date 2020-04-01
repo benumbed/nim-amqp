@@ -11,11 +11,10 @@ import tables
 
 import ../errors
 import ../field_table
-import ../frames
 import ../types
 import ../utils
 
-type AMQPConnectionError* = object of AMQPError
+type AMQPConnectionClassError* = object of AMQPError
 
 type ConnectionStartArgs* = object
     versionMajor*: uint8
@@ -117,10 +116,13 @@ proc toWire*(this: ConnectionStartOkArgs): Stream =
     # locale
     result.write(uint8(len(this.locale)))
     result.write(this.locale)
+    
+    result.setPosition(0)
 
 
 proc connectionStartOk*(conn: AMQPConnection, args: ConnectionStartOkArgs) = 
     ## Implementation of connection.start-ok for AMQP
+    let cargs = args.toWire()
     let argString = args.toWire().readAll()
 
     let frame = AMQPFrame(
@@ -131,7 +133,12 @@ proc connectionStartOk*(conn: AMQPConnection, args: ConnectionStartOkArgs) =
         payloadString: argString
     )
 
-    sendFrame(conn, frame)
+    echo frame.payloadSize, frame.payloadString
+
+    let sendRes = conn.frameSender(conn, frame)
+    if sendRes.error:
+        raise newException(AMQPConnectionClassError, sendRes.result)
+    conn.frameHandler(conn)
     
 
 # ----------------------------------------------------------------------------------------------------------------------

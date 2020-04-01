@@ -20,4 +20,4 @@ test "times out on non-response from server":
 
 
 test "SASL":
-    let conn = newAMQPConnection("localhost", "nouser", "nopass")
+    let conn = newAMQPConnection("localhost", "nouser", "nopass", readTimeout=1000)
