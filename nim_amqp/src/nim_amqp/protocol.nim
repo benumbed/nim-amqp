@@ -44,7 +44,6 @@ proc negotiateVersion(conn: AMQPConnection, amqpVersion: string, readTimeout=500
     let rec = conn.sock.recv(7, readTimeout)
     conn.stream.write(rec)
     conn.stream.flush()
-    conn.stream.setPosition(0)
 
     if conn.stream.peekStr(4) == "AMQP":
         conn.stream.setPosition(7)

@@ -24,19 +24,23 @@ proc sendFrame*(conn: AMQPConnection, frame: AMQPFrame): StrWithError =
     case frame.payloadType:
     of ptStream:
         let payloadStr = frame.payloadStream.readAll()
-        stream.write(uint32(len(payloadStr)))
+        stream.write(swapEndian(uint32(len(payloadStr))))
         stream.write(payloadStr)
     of ptString:
         stream.write(frame.payloadSize)
         stream.write(frame.payloadString)
     
-    stream.write(0xCE)
+    # Note to future self: write treats 0xCE as 32b, that's why we need the cast
+    stream.write(uint8(0xCE))
+    stream.setPosition(0)
 
     try:
         conn.sock.send(stream.readAll())
     except OSError as e:
         return (fmt"Failed to send AMQP frame: {e.msg}", true)
-
+    finally:
+        stream.close()
+    
     return ("", false)
 
 
@@ -47,14 +51,23 @@ proc handleFrame*(conn: AMQPConnection) =
     var frame = AMQPFrame(payloadType: ptStream)
 
     # Version negotiation pre-fetches 7B, so we need to account for that
-    if conn.stream.atEnd():
-        conn.stream.write(conn.sock.recv(7, conn.readTimeout))
-        if conn.stream.atEnd():
-            raise newException(AMQPFrameError, "Failed to read frame from server")
+    if not conn.stream.atEnd() and conn.negoComplete:
+        echo "Before"
+        let rec = conn.sock.recv(7, conn.readTimeout)
+        echo "closed: ", rec == ""
+        echo fmt("rec: {rec} {sizeof(rec)}")
+        conn.stream.write(rec)
+        echo "After"
+
+    conn.stream.setPosition(0)
 
     frame.frameType = conn.stream.readUint8()
     conn.stream.readNumericEndian(frame.channel)
     conn.stream.readNumericEndian(frame.payloadSize)
+    # This resets the stream for the next frame (the rest of the operations happen on different streams)
+    conn.stream.setPosition(0)
+
+    echo fmt"{frame.frameType:#d}  {frame.channel:#d}  {frame.payloadSize:#d}"
 
     # Frame-end is a single octet that must be set to 0xCE (thus the +1)
     let payload_plus_frame_end = conn.sock.recv(int(frame.payloadSize)+1, conn.readTimeout)
