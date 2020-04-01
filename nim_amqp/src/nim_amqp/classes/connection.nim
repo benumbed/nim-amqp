@@ -8,7 +8,6 @@ import streams
 import strutils
 import system
 import tables
-import os
 
 import ../errors
 import ../field_table
@@ -87,7 +86,8 @@ proc connectionTune*(conn: AMQPConnection, stream: Stream)
 proc connectionTuneOk*(conn: AMQPConnection, args: ConnectionTuneOkArgs)
 proc connectionOpen*(conn: AMQPConnection)
 proc connectionOpenOk*(conn: AMQPConnection, stream: Stream)
-proc connectionClose*(conn: AMQPConnection)
+proc connectionClose*(conn: AMQPConnection, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
+                     methodId: uint16 = 0)
 proc connectionClose*(conn: AMQPConnection, stream: Stream)
 proc connectionCloseOk*(conn: AMQPConnection)
 proc connectionCloseOk*(conn: AMQPConnection, stream: Stream)
@@ -261,20 +261,20 @@ proc connectionOpenOk*(conn: AMQPConnection, stream: Stream) =
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::close
 # ----------------------------------------------------------------------------------------------------------------------
-proc connectionClose*(conn: AMQPConnection) =
+proc connectionClose*(conn: AMQPConnection, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
+                     methodId: uint16 = 0) =
     ## connection.close -- Client response
     let stream = newStringStream()
 
     stream.write(swapEndian(uint16(10)))
     stream.write(swapEndian(uint16(50)))
 
-    stream.write(swapEndian(uint16(200)))
-    let txt = "Normal shutdown1"
-    stream.write(uint8(len(txt)))
-    stream.write(txt)
+    stream.write(swapEndian(reply_code))
+    stream.write(uint8(len(reply_text)))
+    stream.write(reply_text)
 
-    stream.write(swapEndian(uint16(10)))
-    stream.write(swapEndian(uint16(50)))
+    stream.write(swapEndian(classId))
+    stream.write(swapEndian(methodId))
 
     stream.setPosition(0)
 
@@ -302,8 +302,6 @@ proc connectionClose*(conn: AMQPConnection, stream: Stream) =
 
     let class = swapEndian(stream.readUint16())
     let meth = swapEndian(stream.readUint16())
-
-    echo code, reason, class, meth
 
     connectionCloseOk(conn)
 

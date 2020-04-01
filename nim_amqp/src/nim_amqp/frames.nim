@@ -52,12 +52,7 @@ proc handleFrame*(conn: AMQPConnection) =
 
     # Version negotiation pre-fetches 7B, so we need to account for that
     if not conn.stream.atEnd() and conn.negoComplete:
-        echo "Before"
-        let rec = conn.sock.recv(7, conn.readTimeout)
-        echo "closed: ", rec == ""
-        echo fmt("rec: {rec} {sizeof(rec)}")
-        conn.stream.write(rec)
-        echo "After"
+        conn.stream.write(conn.sock.recv(7, conn.readTimeout))
 
     conn.stream.setPosition(0)
 
@@ -66,8 +61,6 @@ proc handleFrame*(conn: AMQPConnection) =
     conn.stream.readNumericEndian(frame.payloadSize)
     # This resets the stream for the next frame (the rest of the operations happen on different streams)
     conn.stream.setPosition(0)
-
-    echo fmt"{frame.frameType:#d}  {frame.channel:#d}  {frame.payloadSize:#d}"
 
     # Frame-end is a single octet that must be set to 0xCE (thus the +1)
     let payload_plus_frame_end = conn.sock.recv(int(frame.payloadSize)+1, conn.readTimeout)

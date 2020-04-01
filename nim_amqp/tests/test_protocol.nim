@@ -6,8 +6,6 @@
 import net
 import unittest
 
-import streams
-
 import nim_amqp/protocol
 
 
@@ -22,17 +20,4 @@ import nim_amqp/protocol
 
 
 test "SASL":
-    # var strm = newStringStream("The first line\nthe second line\nthe thirdline")
-    # doAssert strm.readAll() == "The first line\nthe second line\nthe third line"
-    # doAssert strm.atEnd() == true
-    # strm.close()
-
-    # let stream = newStringStream()
-
-    # stream.write("blahw")
-    # stream.setPosition(0)
-
-    # let str = stream.readAll()
-    # echo stream.len
-
     let conn = newAMQPConnection("localhost", "guest", "guest", readTimeout=5000)
