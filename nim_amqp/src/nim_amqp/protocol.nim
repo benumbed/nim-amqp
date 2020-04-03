@@ -4,7 +4,6 @@
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
 import net
-import streams
 import strformat
 
 import ./errors
@@ -26,7 +25,6 @@ proc newAMQPConnection*(host, username, password: string, port = 5672, connectTi
     result.sock.connect(host, Port(port), timeout=connectTimeout)
     result.readTimeout = readTimeout
     result.version = amqpVersion
-    result.stream = newStringStream()
     result.username = username
     result.password = password
 
@@ -42,19 +40,14 @@ proc negotiateVersion(conn: AMQPConnection, amqpVersion: string, readTimeout=500
         raise newException(AMQPVersionError, "Failed to send AMQP version string")
 
     # Read only the header, unless it's a version response, then we're missing a byte (will be handled elsewhere)
-    let rec = conn.sock.recv(7, readTimeout)
-    conn.stream.write(rec)
-    conn.stream.flush()
+    var data = conn.sock.recv(7, readTimeout)
 
-    if conn.stream.peekStr(4) == "AMQP":
-        conn.stream.setPosition(7)
-        conn.stream.write(conn.sock.recv(1, readTimeout))
-        conn.stream.setPosition(0)
+    if data[0..3] == "AMQP":
+        data.add(conn.sock.recv(1, readTimeout))
         raise newException(AMQPVersionError, 
-            fmt"Server does not support {amqpVersion}, sent: {conn.stream.readStr(8).readRawAMQPVersion()}")
+            fmt"Server does not support {amqpVersion}, sent: {data.readRawAMQPVersion()}")
     
     conn.version = amqpVersion
-    conn.negoComplete = true
 
     # Handle the rest of the connection initiation
-    conn.frameHandler(conn)
+    conn.frameHandler(conn, data)

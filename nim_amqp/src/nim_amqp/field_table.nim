@@ -13,6 +13,29 @@ import ./endian
 import ./errors
 
 # Maps field-table value types from the AMQP standard
+# type FieldTableValueType_ActualAMQP091* = enum
+#     ftBadField = 0
+#     ftFieldArray = 'A',
+#     ftShortShortUint = 'B',
+#     ftDecimalValue = 'D',
+#     ftFieldTable = 'F',
+#     ftLongInt = 'I',
+#     ftLongLongInt = 'L',
+#     ftLongString = 'S',
+#     ftTimestamp = 'T',
+#     ftShortInt = 'U',
+#     ftNoField = 'V',
+#     ftShortShortInt = 'b',
+#     ftDouble = 'd',
+#     ftFloat = 'f',
+#     ftLongUint = 'i',
+#     ftLongLongUint = 'l',
+#     ftShortString = 's',
+#     ftBool = 't',
+#     ftShortUint = 'u'
+
+# ^v Because RabbitMQ's devs apparently can't get along with the AMQP 0-9-1 architects
+# I'll have to figure out how to handle servers that actually honor the 0-9-1 spec down the road
 type FieldTableValueType* = enum
     ftBadField = 0
     ftFieldArray = 'A',
@@ -23,16 +46,16 @@ type FieldTableValueType* = enum
     ftLongLongInt = 'L',
     ftLongString = 'S',
     ftTimestamp = 'T',
-    ftShortInt = 'U',
     ftNoField = 'V',
     ftShortShortInt = 'b',
     ftDouble = 'd',
     ftFloat = 'f',
     ftLongUint = 'i',
-    ftLongLongUint = 'l',
-    ftShortString = 's',
+    # ftLongLongUint = 'L',
+    ftShortInt = 's',
+    # ftShortString = 's',
     ftBool = 't',
-    ftShortUint = 'u',
+    ftShortUint = 'u'
 
 type
     FieldTable* = ref OrderedTable[string, FieldTableValue]
@@ -47,11 +70,11 @@ type
         of ftLongInt: int32Val*: int32
         of ftLongUint: uint32Val*: uint32
         of ftLongLongInt: int64Val*: int64
-        of ftLongLongUint: uint64Val*: uint64
+        # of ftLongLongUint: uint64Val*: uint64
         of ftFloat: floatVal*: float32
         of ftDouble: doubleVal*: float64
         of ftDecimalValue: decimalVal*: FieldTableDecimal
-        of ftShortString: shortStringVal*: string
+        # of ftShortString: shortStringVal*: string
         of ftLongString: longStringVal*: string
         of ftFieldArray: arrayVal*: seq[FieldTableValue]
         of ftFieldTable: tableVal*: FieldTable
@@ -95,7 +118,7 @@ proc `$`*(this: FieldTableValue): string =
         of ftLongInt: result = $this.int32Val
         of ftLongUint: result = $this.uint32Val
         of ftLongLongInt: result = $this.int64Val
-        of ftLongLongUint: result = $this.uint64Val
+        # of ftLongLongUint: result = $this.uint64Val
         of ftFloat: result = $this.floatVal
         of ftDouble: result = $this.doubleVal
         of ftDecimalValue: 
@@ -105,7 +128,7 @@ proc `$`*(this: FieldTableValue): string =
             let valStr = $this.decimalVal.value
             result = [valStr[0..(this.decimalVal.decimalLoc-1)], ".", valStr[this.decimalVal.decimalLoc..(
                      sizeof(valStr)-1)]].join()
-        of ftShortString: result = $this.shortStringVal
+        # of ftShortString: result = $this.shortStringVal
         of ftLongString: result = $this.longStringVal
         of ftFieldArray: result = $this.arrayVal
         of ftFieldTable:
@@ -128,7 +151,7 @@ proc toWire*(this: FieldTable): Stream =
 
         # Recurse for a value that has field-table type
         if value.valType == ftFieldTable:
-            result.write(toWire(value.tableVal).readAll())
+            result.write(value.tableVal.toWire().readAll())
             continue
 
         case value.valType:
@@ -140,15 +163,15 @@ proc toWire*(this: FieldTable): Stream =
             of ftLongInt: result.write(swapEndian(value.int32Val))
             of ftLongUint: result.write(swapEndian(value.uint32Val))
             of ftLongLongInt: result.write(swapEndian(value.int64Val))
-            of ftLongLongUint: result.write(swapEndian(value.uint64Val))
+            # of ftLongLongUint: result.write(swapEndian(value.uint64Val))
             of ftFloat: result.write(swapEndian(value.floatVal))
             of ftDouble: result.write(swapEndian(value.doubleVal))
             of ftDecimalValue: 
                 result.write(value.decimalVal.decimalLoc)
                 result.write(value.decimalVal.value)
-            of ftShortString: 
-                result.write(uint8(len(value.shortStringVal)))
-                result.write(value.shortStringVal)
+            # of ftShortString: 
+            #     result.write(uint8(len(value.shortStringVal)))
+            #     result.write(value.shortStringVal)
             of ftLongString:
                 result.write(swapEndian(uint32(len(value.longStringVal))))
                 result.write(value.longStringVal)
@@ -197,16 +220,16 @@ proc extractFieldTableValue(stream: Stream, valType: FieldTableValueType): Field
             stream.readNumericEndian(result.uInt32Val)
         of ftLongLongInt:
             stream.readNumericEndian(result.int64Val)
-        of ftLongLongUint:
-            stream.readNumericEndian(result.uInt64Val)
+        # of ftLongLongUint:
+        #     stream.readNumericEndian(result.uInt64Val)
         of ftFloat:
             stream.readNumericEndian(result.floatVal)
         of ftDouble:
             stream.readNumericEndian(result.doubleVal)
         of ftDecimalValue:
             result.decimalVal = FieldTableDecimal(decimalLoc: stream.readUint8(), value: stream.readUint32Endian())
-        of ftShortString:
-            result.shortStringVal = stream.readStr(int(stream.readUint8()))
+        # of ftShortString:
+        #     result.shortStringVal = stream.readStr(int(stream.readUint8()))
         of ftLongString:
             result.longStringVal = stream.readStr(int(stream.readUint32Endian()))
         # FIXME: Not Implemented

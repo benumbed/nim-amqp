@@ -18,12 +18,16 @@ import ../utils
 
 type AMQPConnectionError* = object of AMQPError
 
+const RMQCompatibleProducts = @["RabbitMQ"]
+
 type ConnectionStartArgs* = object
     versionMajor*: uint8
     versionMinor*: uint8
     serverProperties*: FieldTable
     mechanisms*: seq[string]
     locales*: seq[string]
+    # NOTE: This is _not_ part of the spec, it's a discriminator
+    isRMQCompatible*: bool
 
 type ConnectionStartOkArgs* = object
     clientProperties*: FieldTable
@@ -33,8 +37,12 @@ type ConnectionStartOkArgs* = object
 method toWire*(this: ConnectionStartOkArgs): Stream {.base.} =
     ## Converts an AMQPConnectionStartOk structure to wire format
     result = newStringStream()
-    # FIXME: The table freaks RabbitMQ the fuck out, not sure why atm, but it's not needed for proper negotiation
-    # this.clientProperties["client-name"] = FieldTableValue(valType: ftShortString, shortStringVal: "nim-amqp")
+
+    this.clientProperties["product"] = FieldTableValue(valType: ftLongString, longStringVal: "nim-amqp")
+    this.clientProperties["version"] = FieldTableValue(valType: ftLongString, longStringVal: "0.1.0")
+    this.clientProperties["platform"] = FieldTableValue(valType: ftLongString, longStringVal: "Linux")
+    this.clientProperties["copyright"] = FieldTableValue(valType: ftLongString, longStringVal: "Copyright (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com>")
+    this.clientProperties["information"] = FieldTableValue(valType: ftLongString, longStringVal: "None")
 
     # Class and Method IDs
     result.write(swapEndian(uint16(10)))
@@ -42,7 +50,7 @@ method toWire*(this: ConnectionStartOkArgs): Stream {.base.} =
 
     # client-properties
     let cpft = this.clientProperties.toWire().readAll()
-    result.write(swapEndian(uint32(len(cpft))))
+    result.write(swapEndian(uint32(cpft.len)))
     result.write(cpft)
     # mechanism
     result.write(uint8(len(this.mechanism)))
@@ -101,7 +109,7 @@ connectionMethodMap[50] = connectionClose
 connectionMethodMap[51] = connectionCloseOk
 
 
-proc sendFrame(conn: AMQPConnection, payload: string, payloadSize: uint32, callback: proc(conn: AMQPConnection) = nil) = 
+proc sendFrame(conn: AMQPConnection, payload: string, payloadSize: uint32, callback: FrameHandlerProc = nil) = 
     let frame = AMQPFrame(
         frameType: 1,
         channel: swapEndian(uint16(0)),
@@ -126,6 +134,7 @@ proc connectionStart*(conn: AMQPConnection, stream: Stream) =
     ## connection.start method for AMQP
     # Read the data
     let args = stream.readConnectionStartArgs()
+    conn.isRMQCompatible = args.isRMQCompatible
 
     # Validate the data
 
@@ -150,6 +159,9 @@ proc readConnectionStartArgs*(stream: Stream): ConnectionStartArgs =
     # server-properties
     let sp_size = stream.readUint32Endian()
     result.serverProperties = extractFieldTable(newStringStream(stream.readStr(int(sp_size))))
+
+    result.isRMQCompatible = if (result.serverProperties["product"].longStringVal in RMQCompatibleProducts): true 
+                             else: false
 
     # mechanisms
     let mech_size = stream.readUint32Endian()

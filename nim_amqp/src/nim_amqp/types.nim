@@ -21,19 +21,22 @@ type AMQPFrame* = ref object
     of ptStream: payloadStream*: Stream
     of ptString: payloadString*: string
 
-type AMQPConnection* = ref object
-    readTimeout*: int
-    sock*: Socket
-    version*: string
-    locales*: seq[string]
-    mechanisms*: seq[string]
-    stream*: Stream
-    username*: string
-    password*: string
-    negoComplete*: bool
-    connectionReady*: bool
-    frameHandler*: proc(conn: AMQPConnection)
-    frameSender*: proc (conn: AMQPConnection, frame: AMQPFrame): StrWithError
+type
+    FrameHandlerProc* = proc(conn: AMQPConnection, preFetched: string = "")
+
+    AMQPConnection* = ref object
+        readTimeout*: int
+        sock*: Socket
+        version*: string
+        locales*: seq[string]
+        mechanisms*: seq[string]
+        username*: string
+        password*: string
+        connectionReady*: bool
+        frameHandler*: FrameHandlerProc
+        frameSender*: proc (conn: AMQPConnection, frame: AMQPFrame): StrWithError
+        isRMQCompatible*: bool
+
 
 type DispatchMethod* = proc(conn: AMQPConnection, stream: Stream)
 type MethodMap* = Table[uint16, DispatchMethod]
