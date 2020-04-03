@@ -10,7 +10,7 @@ import net
 import ./class
 import ./errors
 import ./types
-import ./utils
+import ./endian
 
 type AMQPFrameError* = object of AMQPError
 

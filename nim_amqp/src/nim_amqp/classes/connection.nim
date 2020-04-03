@@ -3,6 +3,7 @@
 ##
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
+import net
 import strformat
 import streams
 import strutils
@@ -10,11 +11,12 @@ import system
 import tables
 
 import ../errors
+import ../endian
 import ../field_table
 import ../types
 import ../utils
 
-type AMQPConnectionClassError* = object of AMQPError
+type AMQPConnectionError* = object of AMQPError
 
 type ConnectionStartArgs* = object
     versionMajor*: uint8
@@ -22,13 +24,6 @@ type ConnectionStartArgs* = object
     serverProperties*: FieldTable
     mechanisms*: seq[string]
     locales*: seq[string]
-method `$`*(this: ConnectionStartArgs): string {.base.} =
-    ## repr for AMQPConnectionStart
-    var res: seq[string]
-    res.insert(fmt"connection.start(version-major={this.versionMajor}, version-minor={this.versionMinor}, ", res.len)
-    res.insert(fmt"server-properties={this.serverProperties}, ", res.len)
-    res.insert(fmt"mechanisms={this.mechanisms}, locales={this.locales})", res.len)
-    result = res.join("")
 
 type ConnectionStartOkArgs* = object
     clientProperties*: FieldTable
@@ -82,9 +77,11 @@ method toWire*(this: ConnectionTuneOkArgs): Stream {.base.} =
 
 proc connectionStart*(conn: AMQPConnection, stream: Stream)
 proc connectionStartOk*(conn: AMQPConnection, args: ConnectionStartOkArgs)
+proc connectionSecure*(conn:AMQPConnection, stream: Stream)
+proc connectionSecureOk*(conn:AMQPConnection, response: string)
 proc connectionTune*(conn: AMQPConnection, stream: Stream)
 proc connectionTuneOk*(conn: AMQPConnection, args: ConnectionTuneOkArgs)
-proc connectionOpen*(conn: AMQPConnection)
+proc connectionOpen*(conn: AMQPConnection, vhost: string = "/")
 proc connectionOpenOk*(conn: AMQPConnection, stream: Stream)
 proc connectionClose*(conn: AMQPConnection, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
                      methodId: uint16 = 0)
@@ -97,10 +94,28 @@ proc newConnectionStartOkArgs*(): ConnectionStartOkArgs
 var connectionMethodMap* = MethodMap()
 # These are only for incoming calls
 connectionMethodMap[10] = connectionStart
+connectionMethodMap[20] = connectionSecure
 connectionMethodMap[30] = connectionTune
 connectionMethodMap[41] = connectionOpenOk
 connectionMethodMap[50] = connectionClose
 connectionMethodMap[51] = connectionCloseOk
+
+
+proc sendFrame(conn: AMQPConnection, payload: string, payloadSize: uint32, callback: proc(conn: AMQPConnection) = nil) = 
+    let frame = AMQPFrame(
+        frameType: 1,
+        channel: swapEndian(uint16(0)),
+        payloadType: ptString,
+        payloadSize: swapEndian(payloadSize),
+        payloadString: payload
+    )
+
+    let sendRes = conn.frameSender(conn, frame)
+    if sendRes.error:
+        raise newException(AMQPConnectionError, sendRes.result)
+
+    if callback != nil:
+        callback(conn)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -119,6 +134,7 @@ proc connectionStart*(conn: AMQPConnection, stream: Stream) =
     var csoArgs = newConnectionStartOkArgs()
     csoArgs.mechanism = "PLAIN"
     csoArgs.locale = args.locales[0]
+    # This is all SASL PLAIN really is
     csoArgs.response = fmt("\0{conn.username}\0{conn.password}")
     
     connectionStartOk(conn, csoArgs)
@@ -159,24 +175,30 @@ proc connectionStartOk*(conn: AMQPConnection, args: ConnectionStartOkArgs) =
     ## Implementation of connection.start-ok for AMQP
     let argString = args.toWire().readAll()
 
-    let frame = AMQPFrame(
-        frameType: 1,
-        channel: swapEndian(uint16(0)),
-        payloadType: ptString,
-        payloadSize: swapEndian(uint32(len(argString))),
-        payloadString: argString
-    )
-
-    let sendRes = conn.frameSender(conn, frame)
-    if sendRes.error:
-        raise newException(AMQPConnectionClassError, sendRes.result)
-    conn.frameHandler(conn)
+    try:
+        sendFrame(conn, argString, uint32(len(argString)), conn.frameHandler)
+    except TimeoutError:
+        raise newException(AMQPConnectionError, """Sending 'connection.start-ok' timed-out, this could be caused by 
+                           invalid credentials""".singleLine)
     
 
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::secure
 # ----------------------------------------------------------------------------------------------------------------------
+proc connectionSecure*(conn:AMQPConnection, stream: Stream) =
+    ## connection.secure implementation
+    let chalSize = swapEndian(stream.readUint32())
+    let chalString = stream.readStr(int(chalSize))
+    # TODO: SASL/Alternative Auth Mechanisms?
+    raise newException(AMQPNotImplementedError, "connection.secure is not implemented")
 
+
+# ----------------------------------------------------------------------------------------------------------------------
+# connection::secure-ok
+# ----------------------------------------------------------------------------------------------------------------------
+proc connectionSecureOk*(conn:AMQPConnection, response: string) = 
+    ## connection.secure-ok implementation
+    raise newException(AMQPNotImplementedError, "connection.secure-ok is not implemented")
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -192,6 +214,7 @@ proc connectionTune*(conn: AMQPConnection, stream: Stream) =
     connectionTuneOk(conn, args)
 
 
+# TODO: Provide for client tuning parameters, right now we just accept what the server wants
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::tune-ok
 # ----------------------------------------------------------------------------------------------------------------------
@@ -199,26 +222,14 @@ proc connectionTuneOk*(conn: AMQPConnection, args: ConnectionTuneOkArgs) =
     ## connection.tune-ok implementation
     let argString = args.toWire().readAll()
 
-    let frame = AMQPFrame(
-        frameType: 1,
-        channel: swapEndian(uint16(0)),
-        payloadType: ptString,
-        payloadSize: swapEndian(uint32(len(argString))),
-        payloadString: argString
-    )
-
-    let sendRes = conn.frameSender(conn, frame)
-    if sendRes.error:
-        raise newException(AMQPConnectionClassError, sendRes.result)
-
-    connectionOpen(conn)
+    sendFrame(conn, argString, uint32(len(argString)))
 
 
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::open
 # ----------------------------------------------------------------------------------------------------------------------
-proc connectionOpen*(conn: AMQPConnection) =
-    let vhost = "/"
+proc connectionOpen*(conn: AMQPConnection, vhost: string = "/") =
+    ## connection.open implementation
     let stream = newStringStream()
 
     stream.write(swapEndian(uint16(10)))
@@ -227,6 +238,8 @@ proc connectionOpen*(conn: AMQPConnection) =
     stream.write(uint8(len(vhost)))
     stream.write(vhost)
 
+    # Reserved stuff that RabbitMQ freaks out about if it's not there
+    # https://www.rabbitmq.com/amqp-0-9-1-reference.html#connection.open
     stream.write(uint8(0))
     stream.write("")
     stream.write(uint8(0))
@@ -235,28 +248,15 @@ proc connectionOpen*(conn: AMQPConnection) =
 
     let payload = stream.readAll()
 
-    ## connection.open implementation
-    let frame = AMQPFrame(
-        frameType: 1,
-        channel: swapEndian(uint16(0)),
-        payloadType: ptString,
-        payloadSize: swapEndian(uint32(len(payload))),
-        payloadString: payload
-    )
+    sendFrame(conn, payload, uint32(len(payload)), conn.frameHandler)
 
-    let sendRes = conn.frameSender(conn, frame)
-    if sendRes.error:
-        raise newException(AMQPConnectionClassError, sendRes.result)
-        
-    conn.frameHandler(conn)
-
-    connectionClose(conn)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::open-ok
 # ----------------------------------------------------------------------------------------------------------------------
 proc connectionOpenOk*(conn: AMQPConnection, stream: Stream) =
     ## connection.open-ok implementation
+    conn.connectionReady = true
 
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::close
@@ -280,21 +280,10 @@ proc connectionClose*(conn: AMQPConnection, reply_code: uint16 = 200, reply_text
 
     let payload = stream.readAll()
 
-    let frame = AMQPFrame(
-        frameType: 1,
-        channel: swapEndian(uint16(0)),
-        payloadType: ptString,
-        payloadSize: swapEndian(uint32(len(payload))),
-        payloadString: payload
-    )
-
-    let sendRes = conn.frameSender(conn, frame)
-    if sendRes.error:
-        raise newException(AMQPConnectionClassError, sendRes.result)
-        
-    conn.frameHandler(conn)
+    sendFrame(conn, payload, uint32(len(payload)), conn.frameHandler)
 
 
+#  TODO: Put handlers in this which will handle close errors from server based on provided values
 proc connectionClose*(conn: AMQPConnection, stream: Stream) =
     ## connection.close -- Server response
     let code = swapEndian(stream.readUint16())
@@ -305,11 +294,14 @@ proc connectionClose*(conn: AMQPConnection, stream: Stream) =
 
     connectionCloseOk(conn)
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::close-ok
 # ----------------------------------------------------------------------------------------------------------------------
+
+# TODO: initiate shutdown of the thread/process from here
 proc connectionCloseOk*(conn: AMQPConnection) =
-    ## connection.close-ok implementation
+    ## connection.close-ok implementation -- Client 
     let stream = newStringStream()
 
     stream.write(swapEndian(uint16(10)))
@@ -318,17 +310,7 @@ proc connectionCloseOk*(conn: AMQPConnection) =
 
     let payload = stream.readAll()
 
-    let frame = AMQPFrame(
-        frameType: 1,
-        channel: swapEndian(uint16(0)),
-        payloadType: ptString,
-        payloadSize: swapEndian(uint32(len(payload))),
-        payloadString: payload
-    )
-
-    let sendRes = conn.frameSender(conn, frame)
-    if sendRes.error:
-        raise newException(AMQPConnectionClassError, sendRes.result)
+    sendFrame(conn, payload, uint32(len(payload)))
 
 
 proc connectionCloseOk*(conn: AMQPConnection, stream: Stream) =

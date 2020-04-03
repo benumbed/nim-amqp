@@ -3,10 +3,11 @@
 ##
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
+import streams
 import tables
 
 import ./types
-import ./utils
+import ./endian
 import ./classes/basic
 import ./classes/channel
 import ./classes/connection
@@ -31,7 +32,7 @@ let amqpClassMap = {
 
 
 proc classMethodDispatcher*(conn: AMQPConnection, frame: AMQPFrame) =
-    let classId = frame.payloadStream.readUint16Endian()
-    let methodId = frame.payloadStream.readUint16Endian()
+    let classId = swapEndian(frame.payloadStream.readUint16())
+    let methodId = swapEndian(frame.payloadStream.readUint16())
     ## AMQP class dispatcher
     amqpClassMap[classId][methodId](conn, frame.payloadStream)

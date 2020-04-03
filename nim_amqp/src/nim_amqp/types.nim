@@ -31,6 +31,7 @@ type AMQPConnection* = ref object
     username*: string
     password*: string
     negoComplete*: bool
+    connectionReady*: bool
     frameHandler*: proc(conn: AMQPConnection)
     frameSender*: proc (conn: AMQPConnection, frame: AMQPFrame): StrWithError
 

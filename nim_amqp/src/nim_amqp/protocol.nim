@@ -19,10 +19,11 @@ type AMQPVersionError* = object of AMQPError
 proc negotiateVersion*(conn: AMQPConnection, amqpVersion: string, readTimeout=500)
 
 
-proc newAMQPConnection*(host, username, password: string, port = 5672, connectTimeout = 100, readTimeout = 500, amqpVersion = "0.9.1"): AMQPConnection =
+proc newAMQPConnection*(host, username, password: string, port = 5672, connectTimeout = 500, readTimeout = 500, 
+                       amqpVersion = "0.9.1"): AMQPConnection =
     new(result)
     result.sock = newSocket(buffered=true)
-    result.sock.connect(host, Port(5672), timeout=connectTimeout)
+    result.sock.connect(host, Port(port), timeout=connectTimeout)
     result.readTimeout = readTimeout
     result.version = amqpVersion
     result.stream = newStringStream()
@@ -49,7 +50,8 @@ proc negotiateVersion(conn: AMQPConnection, amqpVersion: string, readTimeout=500
         conn.stream.setPosition(7)
         conn.stream.write(conn.sock.recv(1, readTimeout))
         conn.stream.setPosition(0)
-        raise newException(AMQPVersionError, fmt"Server does not support {amqpVersion}, sent: {conn.stream.readStr(8).readRawAMQPVersion()}")
+        raise newException(AMQPVersionError, 
+            fmt"Server does not support {amqpVersion}, sent: {conn.stream.readStr(8).readRawAMQPVersion()}")
     
     conn.version = amqpVersion
     conn.negoComplete = true

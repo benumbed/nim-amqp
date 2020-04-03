@@ -9,7 +9,7 @@ import strutils
 import system
 import tables
 
-import ./utils
+import ./endian
 import ./errors
 
 # Maps field-table value types from the AMQP standard
