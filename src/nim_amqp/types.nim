@@ -36,8 +36,9 @@ type
         frameHandler*: FrameHandlerProc
         frameSender*: proc (conn: AMQPConnection, frame: AMQPFrame): StrWithError
         isRMQCompatible*: bool
+        openChannels*: seq[uint16]
 
 
-type DispatchMethod* = proc(conn: AMQPConnection, stream: Stream)
+type DispatchMethod* = proc(conn: AMQPConnection, stream: Stream, channel: uint16)
 type MethodMap* = Table[uint16, DispatchMethod]
 type DispatchMap* = Table[uint16, MethodMap]

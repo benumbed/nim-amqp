@@ -35,4 +35,4 @@ proc classMethodDispatcher*(conn: AMQPConnection, frame: AMQPFrame) =
     let classId = swapEndian(frame.payloadStream.readUint16())
     let methodId = swapEndian(frame.payloadStream.readUint16())
     ## AMQP class dispatcher
-    amqpClassMap[classId][methodId](conn, frame.payloadStream)
+    amqpClassMap[classId][methodId](conn, frame.payloadStream, frame.channel)
