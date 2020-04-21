@@ -3,6 +3,7 @@
 ##
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
+import chronicles
 import net
 import strformat
 import streams
@@ -15,6 +16,8 @@ import ../endian
 import ../field_table
 import ../types
 import ../utils
+
+const CLASS_ID: uint16 = 10
 
 type AMQPConnectionError* = object of AMQPError
 
@@ -73,7 +76,7 @@ method toWire*(this: ConnectionTuneOkArgs): Stream {.base.} =
     result = newStringStream()
 
     # Class and Method IDs
-    result.write(swapEndian(uint16(10)))
+    result.write(swapEndian(uint16(CLASS_ID)))
     result.write(swapEndian(uint16(31)))
 
     result.write(swapEndian(this.channel_max))
@@ -244,7 +247,7 @@ proc connectionOpen*(conn: AMQPConnection, vhost: string = "/") =
     ## connection.open implementation
     let stream = newStringStream()
 
-    stream.write(swapEndian(uint16(10)))
+    stream.write(swapEndian(uint16(CLASS_ID)))
     stream.write(swapEndian(uint16(40)))
 
     stream.write(uint8(len(vhost)))
@@ -278,7 +281,7 @@ proc connectionClose*(conn: AMQPConnection, reply_code: uint16 = 200, reply_text
     ## connection.close -- Client response
     let stream = newStringStream()
 
-    stream.write(swapEndian(uint16(10)))
+    stream.write(swapEndian(uint16(CLASS_ID)))
     stream.write(swapEndian(uint16(50)))
 
     stream.write(swapEndian(reply_code))
@@ -304,6 +307,7 @@ proc connectionClose*(conn: AMQPConnection, stream: Stream, channel: uint16) =
     let class = swapEndian(stream.readUint16())
     let meth = swapEndian(stream.readUint16())
 
+    debug "Server requested to close connection", code=code, reason=reason, class=class, meth=meth
     connectionCloseOk(conn)
 
 
@@ -316,7 +320,7 @@ proc connectionCloseOk*(conn: AMQPConnection) =
     ## connection.close-ok implementation -- Client 
     let stream = newStringStream()
 
-    stream.write(swapEndian(uint16(10)))
+    stream.write(swapEndian(uint16(CLASS_ID)))
     stream.write(swapEndian(uint16(51)))
     stream.setPosition(0)
 
@@ -330,4 +334,5 @@ proc connectionCloseOk*(conn: AMQPConnection) =
 proc connectionCloseOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
     ## connection.close-ok -- Server response
     conn.connectionReady = false
-    return
+    let peerInfo = conn.sock.getPeerAddr()
+    debug "Closed connection to server", serverAddr=peerInfo[0], serverPort=peerInfo[1]

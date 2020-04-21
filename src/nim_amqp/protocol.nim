@@ -5,6 +5,7 @@
 ##
 import net
 import strformat
+import tables
 
 import ./errors
 import ./frames
@@ -30,6 +31,8 @@ proc newAMQPConnection*(host, username, password: string, port = 5672, connectTi
 
     result.frameHandler = handleFrame
     result.frameSender = sendFrame
+
+    result.openChannels = Table[uint16, AMQPChannelMeta]()
 
     result.negotiateVersion(amqpVersion, readTimeout)
 

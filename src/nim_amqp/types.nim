@@ -21,6 +21,10 @@ type AMQPFrame* = ref object
     of ptStream: payloadStream*: Stream
     of ptString: payloadString*: string
 
+type AMQPChannelMeta* = object
+    active*: bool
+    flow*: bool
+
 type
     FrameHandlerProc* = proc(conn: AMQPConnection, preFetched: string = "")
 
@@ -36,7 +40,7 @@ type
         frameHandler*: FrameHandlerProc
         frameSender*: proc (conn: AMQPConnection, frame: AMQPFrame): StrWithError
         isRMQCompatible*: bool
-        openChannels*: seq[uint16]
+        openChannels*: Table[uint16, AMQPChannelMeta]
 
 
 type DispatchMethod* = proc(conn: AMQPConnection, stream: Stream, channel: uint16)
