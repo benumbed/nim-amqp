@@ -65,7 +65,7 @@ proc channelOpen*(conn: AMQPConnection, channelNum: uint16) =
 
 
 proc channelOpenOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
-    ## Handles a 'connection.ok' from the server
+    ## Handles a 'channel.open-ok' from the server
     if channel in conn.openChannels:
         raise newException(AMQPChannelError, fmt"New channel {channel} was already tracked in connection.  This is a code bug!")
     conn.openChannels.add(channel, AMQPChannelMeta(active: true, flow: true))
@@ -89,7 +89,7 @@ proc channelFlow*(conn: AMQPConnection, flow: bool, channel: uint16) =
 
 
 proc channelFlowOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
-    ## Handles a 'connection.ok' from the server
+    ## Handles a 'connection.flow-ok' from the server
     ## NOTE: RabbitMQ does not support flow control using channel.flow
     if channel notin conn.openChannels:
         raise newException(AMQPChannelError, fmt"Recieved a flow control message for a channel that is not tracked ({channel})")
@@ -154,4 +154,3 @@ proc channelCloseOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
     ##
     debug "Successfully closed channel", channel=channel
     conn.openChannels.del(channel)
-
