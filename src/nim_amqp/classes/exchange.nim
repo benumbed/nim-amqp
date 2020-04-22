@@ -46,7 +46,7 @@ proc sendFrame(conn: AMQPConnection, payloadStrm: Stream, channel: uint16 = 0, c
 
 proc exchangeDeclare*(conn: AMQPConnection, exchangeName: string, exchangeType: string, passive: bool, durable: bool, 
                       autoDelete: bool, internal: bool, noWait: bool, arguments: FieldTable, channel: uint16) =
-    ## Requests for the server to create a new exchange, `exchangeName` (exchange.open)
+    ## Requests for the server to create a new exchange, `exchangeName` (exchange.declare)
     ## 
     if exchangeName.len > 255:
         raise newException(AMQPExchangeError, "Exchange name must be 255 characters or less")
