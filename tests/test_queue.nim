@@ -4,7 +4,6 @@
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
 import unittest
-import tables
 
 import nim_amqp/classes/channel
 import nim_amqp/classes/connection
@@ -24,7 +23,7 @@ suite "AMQP Queue tests":
     test "Can create a new queue":
         conn.queueDeclare("unit-test-queue", false, true, false, true, false, FieldTable(), channelNum)
 
-    test "Can delete an queue":
+    test "Can delete a queue":
         conn.queueDeclare("unit-test-queue-delete", false, true, false, true, false, FieldTable(), channelNum)
         conn.queueDelete("unit-test-queue-delete", false, true, false, channelNum)
 
