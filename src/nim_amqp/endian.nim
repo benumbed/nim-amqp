@@ -93,3 +93,12 @@ proc swapEndian*[T](value: T, srcEndian = cpuEndian, retEndian = bigEndian): T {
         return swapUint(value)
     else:
         return cast[T](swapUint(cast[uintSelect(value)](value)))
+
+
+template swapEndianIfNeeded*[T](v: T): auto =
+    ## Determines whether or not a uint needs an endian swap, and if it does, calls `swapEndian()`
+    ## 
+    when type(T) is not (uint8):
+        swapEndian(v)
+    else:
+        v

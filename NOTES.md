@@ -17,3 +17,13 @@ Little endian is reverse of written notation (why am I always forgetting this)
 
 0x001f0 - BE
 0xf0100 - LE
+
+
+TODO:
+
+Consider moving things like basic, queue and exchange off dependence upon the
+AMQPConnection structure, and using something like an AMQPChannel structure (which 
+would hold a connection).
+
+This would allow for data persistence across calls to the server, which would make
+error handling, and logging when 'Ok' calls are recieved, much easier.

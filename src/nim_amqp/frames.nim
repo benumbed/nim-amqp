@@ -50,6 +50,9 @@ proc handleFrame*(conn: AMQPConnection, preFetched: string = "") =
     ## `amqpVersion` must be in dotted notation
     var frame = AMQPFrame(payloadType: ptStream)
     let stream = newStringStream(preFetched)
+    
+    # TODO: Handle errors, see 2.3.7 in the spec
+    #  This will involve looking for a closed connection, then reading error codes/strings
 
     # Version negotiation pre-fetches 7B, so we need to account for that
     if preFetched.len == 0:

@@ -104,6 +104,11 @@ proc toStrSeq(this: FieldTable): seq[string] =
 proc `$`*(this: FieldTable): string =
     result = this.toStrSeq.join("\p")
 
+# proc len*(this: FieldTable): int = 
+#     ## Returns the size of the FieldTable
+#     ##
+#     return fmt
+
 proc `$`*(this:FieldTableDecimal): string =
     var digits = $this.value
     result = fmt"{digits[0..(this.decimalLoc-1)]}.{this.decimalLoc..(len(digits)-1)}"
