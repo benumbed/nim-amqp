@@ -7,6 +7,7 @@ import chronicles
 import streams
 import tables
 
+import ../content
 import ../endian
 import ../errors
 import ../field_table
@@ -185,7 +186,7 @@ proc basicPublish*(conn: AMQPConnection, exchangeName: string, routingKey: strin
     stream.write(uint8(bitFields))
 
     debug "Publishing message", exchange=exchangeName, mandatory=mandatory, immediate=immediate
-    sendFrame(conn, stream, channel=channel, callback=conn.frameHandler)
+    sendFrame(conn, stream, channel=channel)
 
 
 proc basicPublishOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =

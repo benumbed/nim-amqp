@@ -10,6 +10,7 @@ import tables
 import ./endian
 import ./errors
 import ./field_table
+import ./types
 
 type AMQPContentError* = object of AMQPError
 type AMQPPropertyError* = object of AMQPError
@@ -25,29 +26,29 @@ type AMQPPropertyError* = object of AMQPError
 
 type
     AMQPBasicProperties* = object
-        contentType: string         # MIME type
-        contentEncoding: string     # MIME encoding
-        headers: FieldTable
-        deliveryMode: uint8         # non-persistent (1) or persistent (2)
-        priority: uint8 
-        correlationId: string
-        replyTo: string
-        expiration: string
-        messageId: string
-        timestamp: uint64
-        messageType: string         # `type`
-        userId: string
-        appId: string
-        reserved: string            # Must be empty
+        contentType*: string         # MIME type
+        contentEncoding*: string     # MIME encoding
+        headers*: FieldTable
+        deliveryMode*: uint8         # non-persistent (1) or persistent (2)
+        priority*: uint8 
+        correlationId*: string
+        replyTo*: string
+        expiration*: string
+        messageId*: string
+        timestamp*: uint64
+        messageType*: string         # `type`
+        userId*: string
+        appId*: string
+        reserved*: string            # Must be empty
 
 
     AMQPContentHeader* = object
-        classId: uint16
+        classId*: uint16
         # This is unused
-        weight: uint16
-        bodySize: uint64
-        propertyFlags: uint16
-        propertyList: AMQPBasicProperties
+        weight*: uint16
+        bodySize*: uint64
+        propertyFlags*: uint16
+        propertyList*: AMQPBasicProperties
 
 # This is used to set the propertyFlags bitfield properly
 const PROPERTY_ORDERING = [
@@ -120,6 +121,7 @@ proc toWire*(this: AMQPBasicProperties): (string, uint16) =
     stream.writeShortStr(this.appId, "appId", flags)
     stream.writeShortStr(this.reserved, "reserved", flags)
 
+    stream.setPosition(0)
 
     result = (stream.readAll, flags)
 
@@ -137,4 +139,34 @@ proc toWire*(this: AMQPContentHeader): string =
     stream.write(swapEndian(flags))
     stream.write(propList)
 
-    result = stream.readAll()
+    stream.setPosition(0)
+
+    result = stream.readAll
+
+
+proc sendFrame(conn: AMQPConnection, frameType: uint8, payload: string, channel: uint16 = 0, callback: FrameHandlerProc = nil) = 
+    let frame = AMQPFrame(
+        frameType: frameType,
+        channel: swapEndian(channel),
+        payloadType: ptString,
+        payloadSize: swapEndian(uint32(payload.len)),
+        payloadString: payload
+    )
+
+    let sendRes = conn.frameSender(conn, frame)
+    if sendRes.error:
+        raise newException(AMQPContentError, sendRes.result)
+
+    if callback != nil:
+        callback(conn)
+
+
+proc sendContentHeader*(conn: AMQPConnection, header: AMQPContentHeader, channel: uint16) =
+    ## Sends the content header to the server
+    ## 
+    conn.sendFrame(FRAME_CONTENT_HEADER, header.toWire, channel)
+
+proc sendContentBody*(conn: AMQPConnection, body: string, channel: uint16) =
+    ## Sends the content body described by the content header
+    ## 
+    conn.sendFrame(FRAME_CONTENT_BODY, body, channel)

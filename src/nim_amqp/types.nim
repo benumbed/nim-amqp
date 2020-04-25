@@ -10,10 +10,10 @@ import tables
 import ./errors
 
 # Frame types (AMQP 0-9-1 -- 4.2.3)
-const FRAME_METHOD = uint8(1)
-const FRAME_CONTENT_HEADER = uint8(2)
-const FRAME_CONTENT_BODY = uint8(3)
-const FRAME_HEARTBEAT = uint8(4)
+const FRAME_METHOD* = uint8(1)
+const FRAME_CONTENT_HEADER* = uint8(2)
+const FRAME_CONTENT_BODY* = uint8(3)
+const FRAME_HEARTBEAT* = uint8(4)
 
 
 type AMQPFramePayloadType* = enum
