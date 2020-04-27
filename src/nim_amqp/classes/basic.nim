@@ -7,7 +7,6 @@ import chronicles
 import streams
 import tables
 
-import ../content
 import ../endian
 import ../errors
 import ../field_table
@@ -185,12 +184,11 @@ proc basicPublish*(conn: AMQPConnection, exchangeName: string, routingKey: strin
     let bitFields = (uint8(mandatory)) or (uint8(immediate) shl 1)
     stream.write(uint8(bitFields))
 
-    debug "Publishing message", exchange=exchangeName, mandatory=mandatory, immediate=immediate
+    debug "Sending basicPublish", exchange=exchangeName, mandatory=mandatory, immediate=immediate
     sendFrame(conn, stream, channel=channel)
 
 
-proc basicPublishOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
-    ## Server responding to a successful queue.purge request
+proc basicReturn*(conn: AMQPConnection, replyCode: uint16, replyText: string, exchangeName: string, routingKey: string) =
+    ## 'Returns' a message that could not be processed to the server
     ## 
-    debug "Published message"
-
+    

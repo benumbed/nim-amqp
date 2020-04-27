@@ -3,30 +3,33 @@
 ##
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
-import net
+# import net
 import strformat
 import system
+import asyncnet, asyncdispatch
 
-import nim_amqp/methods
-import nim_amqp/protocol
-import nim_amqp/classes/connection
+# import nim_amqp/methods
+# import nim_amqp/protocol
+# import nim_amqp/classes/connection
 
-proc connect(host: string, port = 5672, saslMechanism = "PLAIN"): AMQPConnection =
-    ## Creates a new AMQP connection
-    result = newAMQPConnection(host, port)
-    let meth = result.readFrame().extractMethod()
-    let connStart = meth.extractConnectionStart()
+# proc connect(host: string, port = 5672, saslMechanism = "PLAIN"): AMQPConnection =
+#     ## Creates a new AMQP connection
+#     result = newAMQPConnection(host, port)
+#     let meth = result.readFrame().extractMethod()
+#     let connStart = meth.extractConnectionStart()
 
-    if not (saslMechanism in connStart.mechanisms):
-        raise newException(AMQPError, fmt"Invalid SASL mechanism specified, server provides: {connStart.mechanisms}")
+#     if not (saslMechanism in connStart.mechanisms):
+#         raise newException(AMQPError, fmt"Invalid SASL mechanism specified, server provides: {connStart.mechanisms}")
 
 when isMainModule:
     # let ssl_ctx = net.newContext()
-    # var sock = asyncnet.newAsyncSocket()
-    var sock = newSocket(buffered=true)
-    sock.connect("localhost", Port(5672), 5)
+    var sock = newAsyncSocket()
+    # var sock = newSocket(buffered=true)
+    waitFor sock.connect("localhost", Port(5672))
     # asyncnet.wrapSocket(ssl_ctx, sock)
 
-    let frame = sock.readFrame()
+    # let frame = sock.readFrame()
+
+    runForever()
 
     sock.close()

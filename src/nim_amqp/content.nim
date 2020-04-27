@@ -15,7 +15,6 @@ import ./types
 type AMQPContentError* = object of AMQPError
 type AMQPPropertyError* = object of AMQPError
 
-
 # See spec section 2.3.5.2 for info on frame format
 
 # Send header with FRAME_CONTENT_HEADER type
@@ -170,3 +169,13 @@ proc sendContentBody*(conn: AMQPConnection, body: string, channel: uint16) =
     ## Sends the content body described by the content header
     ## 
     conn.sendFrame(FRAME_CONTENT_BODY, body, channel)
+
+
+proc handleContentHeader*(conn: AMQPConnection, frame: AMQPFrame) =
+    ## Handles an incoming content header
+    ## 
+    
+
+proc handleContentBody*(conn: AMQPConnection, frame: AMQPFrame) =
+    ## Handles incoming content bodies
+    ##     

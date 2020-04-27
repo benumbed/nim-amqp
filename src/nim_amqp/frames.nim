@@ -11,6 +11,7 @@ import ./class
 import ./errors
 import ./types
 import ./endian
+import ./content
 
 type AMQPFrameError* = object of AMQPError
 
@@ -73,10 +74,20 @@ proc handleFrame*(conn: AMQPConnection, preFetched: string = "") =
 
     frame.payloadStream = newStringStream(payload_plus_frame_end[0..(frame.payloadSize-1)])
 
-    if frame.frameType == 1:
-        classMethodDispatcher(conn, frame)
-    else:
-        raise newException(AMQPFrameError, fmt"Got unexpected frame type '{frame.frameType}'")
+    case frame.frameType:
+        # METHOD
+        of 1:
+            classMethodDispatcher(conn, frame)
+        # CONTENT HEADER
+        of 2:
+            handleContentHeader(conn, frame)
+        # CONTENT BODY
+        of 3:
+            handleContentBody(conn, frame)
+        # HEARTBEAT
+        # of 4:
+        else:
+            raise newException(AMQPFrameError, fmt"Got unexpected frame type '{frame.frameType}'")
 
 
 proc readTLSFrame*(): string = 
