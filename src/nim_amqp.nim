@@ -8,18 +8,15 @@ import strformat
 import system
 import asyncnet, asyncdispatch
 
-# import nim_amqp/methods
-# import nim_amqp/protocol
-# import nim_amqp/classes/connection
+import nim_amqp/protocol
+import nim_amqp/types
+import nim_amqp/classes/connection
 
-# proc connect(host: string, port = 5672, saslMechanism = "PLAIN"): AMQPConnection =
-#     ## Creates a new AMQP connection
-#     result = newAMQPConnection(host, port)
-#     let meth = result.readFrame().extractMethod()
-#     let connStart = meth.extractConnectionStart()
-
-#     if not (saslMechanism in connStart.mechanisms):
-#         raise newException(AMQPError, fmt"Invalid SASL mechanism specified, server provides: {connStart.mechanisms}")
+proc connect*(host, username, password: string, vhost="/", port = 5672, tuning = AMQPTuning()): AMQPConnection =
+    ## Creates a new AMQP connection
+    result = newAMQPConnection(host, username, password, port)
+    result.tuning = tuning
+    result.connectionOpen(vhost)
 
 when isMainModule:
     # let ssl_ctx = net.newContext()

@@ -16,39 +16,43 @@ const CLASS_ID: uint16 = 20
 
 type AMQPChannelError* = object of AMQPError
 
-proc channelOpenOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
-proc channelFlowOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
-proc channelClose*(conn: AMQPConnection, stream: Stream, channel: uint16)
-proc channelCloseOk*(conn: AMQPConnection, channel: uint16)
-proc channelCloseOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
+proc channelOpenOk*(chan: var AMQPChannel, stream: Stream)
+proc channelFlowOk*(chan: var AMQPChannel, stream: Stream)
+proc channelClose*(chan: var AMQPChannel, stream: Stream)
+proc channelCloseOk*(chan: var AMQPChannel)
+proc channelCloseOk*(chan: var AMQPChannel, stream: Stream)
 
-var channelMethodMap* = MethodMap()
+####
+### ME: Working on tying state together, like tracking channels and such, the AMQPCommunication tuple is gross
+####
+
+var channelMethodMap*: Table[uint16, proc(chan: var AMQPChannel, stream: Stream)]
 channelMethodMap[11] = channelOpenOk
 channelMethodMap[21] = channelFlowOk
 channelMethodMap[40] = channelClose
 channelMethodMap[41] = channelCloseOk
 
 
-proc sendFrame(conn: AMQPConnection, payload: string, channel: uint16 = 0, callback: FrameHandlerProc = nil) = 
+proc sendFrame(chan: AMQPChannel, payload: string, callback: FrameHandlerProc = nil) = 
     let frame = AMQPFrame(
         frameType: 1,
-        channel: swapEndian(channel),
+        channel: swapEndian(chan.number),
         payloadType: ptString,
         payloadSize: swapEndian(uint32(len(payload))),
         payloadString: payload
     )
 
-    let sendRes = conn.frameSender(conn, frame)
+    let sendRes = chan.conn.frames.sender(chan.conn, frame)
     if sendRes.error:
         raise newException(AMQPChannelError, sendRes.result)
 
     if callback != nil:
-        callback(conn)
+        callback(chan.conn)
 
 
 
 
-proc channelOpen*(conn: AMQPConnection, channelNum: uint16) =
+proc channelOpen*(chan: AMQPChannel) =
     ## Requests for the server to open a new channel, `channelNum` (channel.open)
     let stream = newStringStream()
 
@@ -60,20 +64,21 @@ proc channelOpen*(conn: AMQPConnection, channelNum: uint16) =
     stream.write("")
     stream.setPosition(0)
 
-    debug "Opening channel", channel=channelNum
-    sendFrame(conn, stream.readAll(), channel=channelNum, callback=conn.frameHandler)
+    debug "Opening channel", channel=chan.number
+    chan.sendFrame(stream.readAll(), callback=chan.conn.frames.handler)
 
 
-proc channelOpenOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc channelOpenOk*(chan: var AMQPChannel, stream: Stream) =
     ## Handles a 'channel.open-ok' from the server
-    if channel in conn.openChannels:
-        raise newException(AMQPChannelError, fmt"New channel {channel} was already tracked in connection.  This is a code bug!")
-    conn.openChannels.add(channel, AMQPChannelMeta(active: true, flow: true))
-    debug "Opened channel", channel=channel
+    ##
+    chan.active = true
+    chan.flow = true
+
+    debug "Opened channel", channel=chan.number
 
 
-proc channelFlow*(conn: AMQPConnection, flow: bool, channel: uint16) =
-    ## Requests for the server to open a new channel, `channelNum` (channel.open)
+proc channelFlow*(chan: AMQPChannel, flow: bool) =
+    ## Requests for the server to stop the flow of messages to this channel
     ## NOTE: RabbitMQ does not support flow control using channel.flow
     let stream = newStringStream()
 
@@ -84,23 +89,23 @@ proc channelFlow*(conn: AMQPConnection, flow: bool, channel: uint16) =
     stream.write(uint8(flow))
     stream.setPosition(0)
 
-    debug "Sending channel flow control request", channel=channel, flow=flow
-    sendFrame(conn, stream.readAll(), channel=channel, callback=conn.frameHandler)
+    debug "Sending channel flow control request", channel=chan.number, flow=flow
+    chan.sendFrame(stream.readAll(), callback=chan.conn.frames.handler)
 
 
-proc channelFlowOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc channelFlowOk*(chan: var AMQPChannel, stream: Stream) =
     ## Handles a 'connection.flow-ok' from the server
     ## NOTE: RabbitMQ does not support flow control using channel.flow
-    if channel notin conn.openChannels:
-        raise newException(AMQPChannelError, fmt"Recieved a flow control message for a channel that is not tracked ({channel})")
-    elif not conn.openChannels[channel].active:
-        raise newException(AMQPChannelError, fmt"Recieved a flow control message for a channel that is not active ({channel})")
+    ##
+    chan.flow = bool(stream.readUint8())
+    
+    if not chan.active:
+        raise newException(AMQPChannelError, fmt"Recieved a flow control message for a channel that is not active ({chan.number})")
 
-    conn.openChannels[channel].flow = stream.readBool()
-    debug "Server confirmed flow control", channel=channel, flow=conn.openChannels[channel].flow
+    debug "Server confirmed flow control request", channel=chan.number, flow=chan.flow
 
 
-proc channelClose*(conn: AMQPConnection, channelNum: uint16, reply_code: uint16 = 200, reply_text="Normal shutdown", 
+proc channelClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Normal shutdown", 
                     classId, methodId: uint16 = 0) = 
     ## Requests for the the server to close a channel (channel.close)
     ## 
@@ -118,11 +123,11 @@ proc channelClose*(conn: AMQPConnection, channelNum: uint16, reply_code: uint16 
 
     stream.setPosition(0)
 
-    debug "Closing channel", channel=channelNum
-    sendFrame(conn, stream.readAll(), channelNum, callback=conn.frameHandler)
+    debug "Closing channel", channel=chan.number
+    chan.sendFrame(stream.readAll(), callback=chan.conn.frames.handler)
 
 
-proc channelClose*(conn: AMQPConnection, stream: Stream, channel: uint16) = 
+proc channelClose*(chan: var AMQPChannel, stream: Stream) = 
     ## Server is requesting the client to close a channel (channel.close)
     ##
     let code = swapEndian(stream.readUint16())
@@ -132,10 +137,10 @@ proc channelClose*(conn: AMQPConnection, stream: Stream, channel: uint16) =
     let meth = swapEndian(stream.readUint16())
 
     debug "Server requested to close channel", code=code, reason=reason, class=class, meth=meth
-    channelCloseOk(conn, channel)
+    chan.channelCloseOk()
 
 
-proc channelCloseOk*(conn: AMQPConnection, channel: uint16) =
+proc channelCloseOk*(chan: var AMQPChannel) =
     ## Send a 'channel.close-ok' to the server
     ## 
     let stream = newStringStream()
@@ -145,12 +150,13 @@ proc channelCloseOk*(conn: AMQPConnection, channel: uint16) =
 
     stream.setPosition(0)
 
-    debug "Telling server it's ok to close channel", channel=channel
-    sendFrame(conn, stream.readAll(), channel, callback=conn.frameHandler)
+    debug "Telling server it's ok to close channel", channel=chan.number
+    chan.active = false
+    chan.sendFrame(stream.readAll(), callback=chan.conn.frames.handler)
 
 
-proc channelCloseOk*(conn: AMQPConnection, stream: Stream, channel: uint16) = 
+proc channelCloseOk*(chan: var AMQPChannel, stream: Stream) = 
     ## Server responding to a channel close (channel.close-ok)
     ##
-    debug "Successfully closed channel", channel=channel
-    conn.openChannels.del(channel)
+    chan.active = false
+    debug "Successfully closed channel", channel=chan.number

@@ -67,31 +67,13 @@ method toWire*(this: ConnectionStartOkArgs): Stream {.base.} =
     
     result.setPosition(0)    
 
-type ConnectionTuneOkArgs* = object
-    channel_max*: uint16
-    frame_max*: uint32
-    heartbeat*: uint16
-method toWire*(this: ConnectionTuneOkArgs): Stream {.base.} =
-    ## Converts a ConnectionTuneOkArgs struct to wire format
-    result = newStringStream()
-
-    # Class and Method IDs
-    result.write(swapEndian(uint16(CLASS_ID)))
-    result.write(swapEndian(uint16(31)))
-
-    result.write(swapEndian(this.channel_max))
-    result.write(swapEndian(this.frame_max))
-    result.write(swapEndian(this.heartbeat))
-
-    result.setPosition(0)
-
 
 proc connectionStart*(conn: AMQPConnection, stream: Stream, channel: uint16)
 proc connectionStartOk*(conn: AMQPConnection, args: ConnectionStartOkArgs)
 proc connectionSecure*(conn:AMQPConnection, stream: Stream, channel: uint16)
 proc connectionSecureOk*(conn:AMQPConnection, response: string)
 proc connectionTune*(conn: AMQPConnection, stream: Stream, channel: uint16)
-proc connectionTuneOk*(conn: AMQPConnection, args: ConnectionTuneOkArgs)
+proc connectionTuneOk*(conn: AMQPConnection)
 proc connectionOpen*(conn: AMQPConnection, vhost: string = "/")
 proc connectionOpenOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
 proc connectionClose*(conn: AMQPConnection, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
@@ -121,7 +103,7 @@ proc sendFrame(conn: AMQPConnection, payload: string, payloadSize: uint32, callb
         payloadString: payload
     )
 
-    let sendRes = conn.frameSender(conn, frame)
+    let sendRes = conn.frames.sender(conn, frame)
     if sendRes.error:
         raise newException(AMQPConnectionError, sendRes.result)
 
@@ -137,7 +119,7 @@ proc connectionStart*(conn: AMQPConnection, stream: Stream, channel: uint16) =
     ## connection.start method for AMQP
     # Read the data
     let args = stream.readConnectionStartArgs()
-    conn.isRMQCompatible = args.isRMQCompatible
+    conn.meta.isRMQCompatible = args.isRMQCompatible
 
     # Validate the data
 
@@ -191,7 +173,7 @@ proc connectionStartOk*(conn: AMQPConnection, args: ConnectionStartOkArgs) =
     let argString = args.toWire().readAll()
 
     try:
-        sendFrame(conn, argString, uint32(len(argString)), conn.frameHandler)
+        sendFrame(conn, argString, uint32(len(argString)), conn.frames.handler)
     except TimeoutError:
         raise newException(AMQPConnectionError, """Sending 'connection.start-ok' timed-out, this could be caused by 
                            invalid credentials""".singleLine)
@@ -221,23 +203,43 @@ proc connectionSecureOk*(conn:AMQPConnection, response: string) =
 # ----------------------------------------------------------------------------------------------------------------------
 proc connectionTune*(conn: AMQPConnection, stream: Stream, channel: uint16) =
     ## connection.tune implementation
-    var args = ConnectionTuneOkArgs()
-    args.channel_max = stream.readUint16Endian()
-    args.frame_max = stream.readUint32Endian()
-    args.heartbeat = stream.readUint16Endian()
+    let channelMax = stream.readUint16Endian()
+    let frameMax = stream.readUint32Endian()
+    let heartbeat = stream.readUint16Endian()
 
-    connectionTuneOk(conn, args)
+    if conn.tuning.channelMax == 0:
+        conn.tuning.channelMax = channelMax
+    if conn.tuning.frameMax == 0:
+        conn.tuning.frameMax = frameMax
+    if conn.tuning.heartbeat == 0:
+        conn.tuning.heartbeat = heartbeat
+
+    info "connection.tune", channelMax=channelMax, frameMax=frameMax, heartbeat=heartbeat
+
+    conn.connectionTuneOk()
 
 
-# TODO: Provide for client tuning parameters, right now we just accept what the server wants
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::tune-ok
 # ----------------------------------------------------------------------------------------------------------------------
-proc connectionTuneOk*(conn: AMQPConnection, args: ConnectionTuneOkArgs) =
-    ## connection.tune-ok implementation
-    let argString = args.toWire().readAll()
+proc connectionTuneOk*(conn: AMQPConnection) =
+    ## connection.tune-ok implementation.  Client can request its own tuning parameters by setting the values in 
+    ## `tuning` within the connection.
+    ##
+    let stream = newStringStream()
 
-    sendFrame(conn, argString, uint32(len(argString)))
+    # Class and Method IDs
+    stream.write(swapEndian(uint16(CLASS_ID)))
+    stream.write(swapEndian(uint16(31)))
+
+    stream.write(swapEndian(conn.tuning.channelMax))
+    stream.write(swapEndian(conn.tuning.frameMax))
+    stream.write(swapEndian(conn.tuning.heartbeat))
+    stream.setPosition(0)
+
+    let payload = stream.readAll()
+
+    conn.sendFrame(payload, uint32(payload.len))
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -263,7 +265,7 @@ proc connectionOpen*(conn: AMQPConnection, vhost: string = "/") =
 
     let payload = stream.readAll()
 
-    sendFrame(conn, payload, uint32(len(payload)), conn.frameHandler)
+    conn.sendFrame(payload, uint32(len(payload)), conn.frames.handler)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -271,7 +273,7 @@ proc connectionOpen*(conn: AMQPConnection, vhost: string = "/") =
 # ----------------------------------------------------------------------------------------------------------------------
 proc connectionOpenOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
     ## connection.open-ok implementation
-    conn.connectionReady = true
+    conn.ready = true
 
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::close
@@ -295,7 +297,7 @@ proc connectionClose*(conn: AMQPConnection, reply_code: uint16 = 200, reply_text
 
     let payload = stream.readAll()
 
-    sendFrame(conn, payload, uint32(len(payload)), conn.frameHandler)
+    conn.sendFrame(payload, uint32(len(payload)), conn.frames.handler)
 
 
 #  TODO: Put handlers in this which will handle close errors from server based on provided values
@@ -308,7 +310,7 @@ proc connectionClose*(conn: AMQPConnection, stream: Stream, channel: uint16) =
     let meth = swapEndian(stream.readUint16())
 
     debug "Server requested to close connection", code=code, reason=reason, class=class, meth=meth
-    connectionCloseOk(conn)
+    conn.connectionCloseOk()
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -326,13 +328,13 @@ proc connectionCloseOk*(conn: AMQPConnection) =
 
     let payload = stream.readAll()
 
-    sendFrame(conn, payload, uint32(len(payload)))
+    conn.sendFrame(payload, uint32(len(payload)))
 
-    conn.connectionReady = false
+    conn.ready = false
 
 
 proc connectionCloseOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
     ## connection.close-ok -- Server response
-    conn.connectionReady = false
+    conn.ready = false
     let peerInfo = conn.sock.getPeerAddr()
     debug "Closed connection to server", serverAddr=peerInfo[0], serverPort=peerInfo[1]

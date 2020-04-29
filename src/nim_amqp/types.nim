@@ -29,28 +29,48 @@ type AMQPFrame* = ref object
     of ptStream: payloadStream*: Stream
     of ptString: payloadString*: string
 
-type AMQPChannelMeta* = object
-    active*: bool
-    flow*: bool
-
 type
     FrameHandlerProc* = proc(conn: AMQPConnection, preFetched: string = "")
+    
+    AMQPTuning* = object
+        channelMax*: uint16
+        frameMax*: uint32
+        heartbeat*: uint16
+
+    AMQPConnectionMeta* = object
+        version*: string
+        locales*: seq[string]
+        mechanisms*: seq[string]
+        isRMQCompatible*: bool
+
+    AMQPFrameHandling* = object
+        handler*: FrameHandlerProc
+        sender*: proc (conn: AMQPConnection, frame: AMQPFrame): StrWithError
 
     AMQPConnection* = ref object
         readTimeout*: int
         sock*: Socket
-        version*: string
-        locales*: seq[string]
-        mechanisms*: seq[string]
         username*: string
         password*: string
-        connectionReady*: bool
-        frameHandler*: FrameHandlerProc
-        frameSender*: proc (conn: AMQPConnection, frame: AMQPFrame): StrWithError
-        isRMQCompatible*: bool
-        openChannels*: Table[uint16, AMQPChannelMeta]
+        ready*: bool
+        meta*: AMQPConnectionMeta
+        frames*: AMQPFrameHandling
+        tuning*: AMQPTuning
+
+    AMQPChannel* = object
+        conn*: AMQPConnection
+        number*: uint16
+        active*: bool
+        flow*: bool
+        curFrame*: AMQPFrame
+
+    AMQPCommunication* = tuple[conn: AMQPConnection, chan: AMQPChannel, tracker: AMQPChannelTracker]
+
+    AMQPChannelTracker* = Table[uint16, AMQPChannel]
 
 
-type DispatchMethod* = proc(conn: AMQPConnection, stream: Stream, channel: uint16)
+
+
+type DispatchMethod* = proc(comm: var AMQPCommunication)
 type MethodMap* = Table[uint16, DispatchMethod]
 type DispatchMap* = Table[uint16, MethodMap]

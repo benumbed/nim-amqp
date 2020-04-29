@@ -5,7 +5,6 @@
 ##
 import net
 import strformat
-import tables
 
 import ./errors
 import ./frames
@@ -16,41 +15,43 @@ type AMQPProtocolError* = object of AMQPError
 type AMQPVersionError* = object of AMQPError
 
 
-proc negotiateVersion*(conn: AMQPConnection, amqpVersion: string, readTimeout=500)
+proc negotiateVersion*(comm: AMQPCommunication)
 
 
 proc newAMQPConnection*(host, username, password: string, port = 5672, connectTimeout = 500, readTimeout = 500, 
-                       amqpVersion = "0.9.1"): AMQPConnection =
-    new(result)
-    result.sock = newSocket(buffered=true)
-    result.sock.connect(host, Port(port), timeout=connectTimeout)
-    result.readTimeout = readTimeout
-    result.version = amqpVersion
-    result.username = username
-    result.password = password
+                       amqpVersion = "0.9.1"): AMQPCommunication =
+    result.conn = new(AMQPConnection)
+    result.chan = AMQPChannel()
+    result.chan.curFrame = AMQPFrame(payloadType: ptStream)
+    result.tracker = AMQPChannelTracker()
 
-    result.frameHandler = handleFrame
-    result.frameSender = sendFrame
+    result.conn.sock = newSocket(buffered=true)
+    result.conn.sock.connect(host, Port(port), timeout=connectTimeout)
+    result.conn.readTimeout = readTimeout
+    result.conn.meta.version = amqpVersion
+    result.conn.username = username
+    result.conn.password = password
 
-    result.openChannels = Table[uint16, AMQPChannelMeta]()
+    result.conn.frames.handler = handleFrame
+    result.conn.frames.sender = sendFrame
 
-    result.negotiateVersion(amqpVersion, readTimeout)
+    result.negotiateVersion()
 
 
-proc negotiateVersion(conn: AMQPConnection, amqpVersion: string, readTimeout=500) =
-    let sent = conn.sock.trySend(wireAMQPVersion(amqpVersion))
+
+proc negotiateVersion(comm: AMQPCommunication) =
+    let conn = comm.conn
+    let sent = conn.sock.trySend(wireAMQPVersion(conn.meta.version))
     if not sent:
         raise newException(AMQPVersionError, "Failed to send AMQP version string")
 
     # Read only the header, unless it's a version response, then we're missing a byte (will be handled elsewhere)
-    var data = conn.sock.recv(7, readTimeout)
+    var data = conn.sock.recv(7, conn.readTimeout)
 
     if data[0..3] == "AMQP":
-        data.add(conn.sock.recv(1, readTimeout))
+        data.add(conn.sock.recv(1, conn.readTimeout))
         raise newException(AMQPVersionError, 
-            fmt"Server does not support {amqpVersion}, sent: {data.readRawAMQPVersion()}")
+            fmt"Server does not support {conn.meta.version}, sent: {data.readRawAMQPVersion()}")
     
-    conn.version = amqpVersion
-
     # Handle the rest of the connection initiation
-    conn.frameHandler(conn, data)
+    conn.frames.handler(data)

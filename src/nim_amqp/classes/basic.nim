@@ -48,7 +48,7 @@ proc sendFrame(conn: AMQPConnection, payloadStrm: Stream, channel: uint16 = 0, c
         payloadString: payload
     )
 
-    let sendRes = conn.frameSender(conn, frame)
+    let sendRes = conn.frames.sender(conn, frame)
     if sendRes.error:
         raise newException(AMQPBasicError, sendRes.result)
 
@@ -70,7 +70,7 @@ proc basicQos*(conn: AMQPConnection, prefetchCount: uint16, global: bool, channe
     stream.write(uint8(global))
 
     debug "Setting QoS params", prefetchSize=0, prefetchCount=prefetchCount, global=global
-    sendFrame(conn, stream, channel=channel, callback=conn.frameHandler)
+    sendFrame(conn, stream, channel=channel, callback=conn.frames.handler)
 
 
 proc basicQosOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
@@ -114,7 +114,7 @@ proc basicConsume*(conn: AMQPConnection, queueName: string, consumerTag: string,
 
     debug "Starting a consumer", queue=queueName, consumerTag=consumerTag, noLocal=noLocal, noAck=noAck, 
         exclusive=exclusive, noWait=noWait
-    sendFrame(conn, stream, channel=channel, callback=conn.frameHandler)
+    sendFrame(conn, stream, channel=channel, callback=conn.frames.handler)
 
 
 proc basicConsumeOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
@@ -144,7 +144,7 @@ proc basicCancel*(conn: AMQPConnection, consumerTag: string, noWait: bool, chann
     stream.write(uint8(noWait))
 
     debug "Canceling consumer", consumerTag=consumerTag
-    sendFrame(conn, stream, channel=channel, callback=conn.frameHandler)
+    sendFrame(conn, stream, channel=channel, callback=conn.frames.handler)
 
 
 proc basicCancelOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =

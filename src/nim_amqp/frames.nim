@@ -7,16 +7,25 @@ import streams
 import strformat
 import net
 
-import ./class
+# import ./class
 import ./errors
 import ./types
 import ./endian
 import ./content
+import ./classes/basic
+import ./classes/channel
+import ./classes/connection
+import ./classes/exchange
+import ./classes/queue
+import ./classes/tx
 
 type AMQPFrameError* = object of AMQPError
 
-proc sendFrame*(conn: AMQPConnection, frame: AMQPFrame): StrWithError =
+
+proc sendFrame*(comm: AMQPCommunication, frame: AMQPFrame): StrWithError =
     ## Sends a pre-formatted AMQP frame to the server
+    ##
+    let conn = comm.conn
     let stream = newStringStream()
 
     stream.write(frame.frameType)
@@ -45,11 +54,13 @@ proc sendFrame*(conn: AMQPConnection, frame: AMQPFrame): StrWithError =
     return ("", false)
 
 
-proc handleFrame*(conn: AMQPConnection, preFetched: string = "") =
+proc handleFrame*(comm: AMQPCommunication, preFetched: string = "") =
     ## Reads an AMQP frame off the wire and checks/parses it.  This is based on the
     ## Advanced Message Queueing Protocol Specification, Section 2.3.5.
     ## `amqpVersion` must be in dotted notation
-    var frame = AMQPFrame(payloadType: ptStream)
+    ##
+    let conn = comm.conn
+    let frame = comm.chan.curFrame
     let stream = newStringStream(preFetched)
     
     # TODO: Handle errors, see 2.3.7 in the spec
@@ -77,18 +88,48 @@ proc handleFrame*(conn: AMQPConnection, preFetched: string = "") =
     case frame.frameType:
         # METHOD
         of 1:
-            classMethodDispatcher(conn, frame)
+            comm.handleMethod()
         # CONTENT HEADER
         of 2:
-            handleContentHeader(conn, frame)
+            comm.handleContentHeader()
         # CONTENT BODY
         of 3:
-            handleContentBody(conn, frame)
+            comm.handleContentBody()
         # HEARTBEAT
         # of 4:
         else:
             raise newException(AMQPFrameError, fmt"Got unexpected frame type '{frame.frameType}'")
 
+
+proc handleHeartbeat(comm: AMQPCommunication) = 
+    ## Handles a heartbeat from the server
+    ##
+    return
+
+
+proc handleMethod(comm: var AMQPCommunication) = 
+    ## Method dispatcher
+    ##
+    let frame = comm.chan.curFrame
+    let classId = swapEndian(frame.payloadStream.readUint16())
+    let methodId = swapEndian(frame.payloadStream.readUint16())
+
+    case classId:
+        of uint(10):
+            comm.connectionMethodMap()
+        of uint16(20):
+            comm.channelMethodMap()
+        of uint16(40):
+            comm.exchangeMethodMap()
+        of uint16(50):
+            comm.queueMethodMap()
+        of uint16(60):
+            comm.basicMethodMap()
+        of uint16(70):
+            comm.txMethodMap()
+        else:
+            raise newException(AMQPFrameError, fmt"Got unknown class ID '{classId}'")
+        
 
 proc readTLSFrame*(): string = 
     ## Reads an AMQP frame from a TLS encrypted session
