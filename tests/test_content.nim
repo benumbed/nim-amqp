@@ -10,19 +10,23 @@ import nim_amqp/classes/connection
 import nim_amqp/classes/exchange
 import nim_amqp/classes/queue
 import nim_amqp/classes/basic
-import nim_amqp/protocol
 import nim_amqp/content
 import nim_amqp/field_table
+import nim_amqp/frames
+import nim_amqp/protocol
+import nim_amqp/types
 
 const exchName = "content-tests-exchange"
 const queueName = "content-tests-queue"
 const channelNum = 1
 let conn = newAMQPConnection("localhost", "guest", "guest")
-conn.connectionOpen("/")
-conn.channelOpen(channelNum)
-conn.exchangeDeclare(exchName, "direct", false, true, false, false, false, FieldTable(), channelNum)
-conn.queueDeclare(queueName, false, true, false, true, false, FieldTable(), channelNum)
-conn.queueBind(queueName, exchName, "content-test", false, FieldTable(), channelNum)
+conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOpen("/")
+
+let chan = conn.newAMQPChannel(number=channelNum, frames.handleFrame, frames.sendFrame)
+chan.channelOpen()
+chan.exchangeDeclare(exchName, "direct", false, true, false, false, false, FieldTable(), channelNum)
+chan.queueDeclare(queueName, false, true, false, true, false, FieldTable(), channelNum)
+chan.queueBind(queueName, exchName, "content-test", false, FieldTable(), channelNum)
 
 suite "Content library tests (pub/sub)":
     # test "Can consume a message from a queue":
@@ -58,12 +62,12 @@ suite "Content library tests (pub/sub)":
 
         header.bodySize = uint64(content.len)
 
-        conn.basicPublish(exchName, "content-test", false, false, channelNum)
-        conn.sendContentHeader(header, channelNum)
-        conn.sendContentBody(content, channelNum)
+        chan.basicPublish(exchName, "content-test", false, false, channelNum)
+        chan.sendContentHeader(header, channelNum)
+        chan.sendContentBody(content, channelNum)
 
 
-conn.queueUnBind(queueName, exchName, "content-test", FieldTable(), channelNum)
-conn.exchangeDelete(exchName, false, false, channelNum)
-conn.channelClose(1)
-conn.connectionClose()
+chan.queueUnBind(queueName, exchName, "content-test", FieldTable(), channelNum)
+chan.exchangeDelete(exchName, false, false, channelNum)
+chan.channelClose(1)
+chan.connectionClose(reply_text="Test Shutdown")

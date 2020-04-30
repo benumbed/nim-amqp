@@ -14,33 +14,24 @@ import ./utils
 type AMQPProtocolError* = object of AMQPError
 type AMQPVersionError* = object of AMQPError
 
-
-proc negotiateVersion*(comm: AMQPCommunication)
+proc negotiateVersion(conn: AMQPConnection)
 
 
 proc newAMQPConnection*(host, username, password: string, port = 5672, connectTimeout = 500, readTimeout = 500, 
-                       amqpVersion = "0.9.1"): AMQPCommunication =
-    result.conn = new(AMQPConnection)
-    result.chan = AMQPChannel()
-    result.chan.curFrame = AMQPFrame(payloadType: ptStream)
-    result.tracker = AMQPChannelTracker()
+                       amqpVersion = "0.9.1"): AMQPConnection =
+    new(result)
 
-    result.conn.sock = newSocket(buffered=true)
-    result.conn.sock.connect(host, Port(port), timeout=connectTimeout)
-    result.conn.readTimeout = readTimeout
-    result.conn.meta.version = amqpVersion
-    result.conn.username = username
-    result.conn.password = password
-
-    result.conn.frames.handler = handleFrame
-    result.conn.frames.sender = sendFrame
+    result.sock = newSocket(buffered=true)
+    result.sock.connect(host, Port(port), timeout=connectTimeout)
+    result.readTimeout = readTimeout
+    result.meta.version = amqpVersion
+    result.username = username
+    result.password = password
 
     result.negotiateVersion()
 
 
-
-proc negotiateVersion(comm: AMQPCommunication) =
-    let conn = comm.conn
+proc negotiateVersion(conn: AMQPConnection) =
     let sent = conn.sock.trySend(wireAMQPVersion(conn.meta.version))
     if not sent:
         raise newException(AMQPVersionError, "Failed to send AMQP version string")
@@ -54,4 +45,5 @@ proc negotiateVersion(comm: AMQPCommunication) =
             fmt"Server does not support {conn.meta.version}, sent: {data.readRawAMQPVersion()}")
     
     # Handle the rest of the connection initiation
-    conn.frames.handler(data)
+    let chan = conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame)
+    chan.frames.handler(chan, preFetched=data)

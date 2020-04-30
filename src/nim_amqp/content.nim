@@ -3,6 +3,7 @@
 ##
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
+import chronicles
 import streams
 import strformat
 import tables
@@ -143,8 +144,8 @@ proc toWire*(this: AMQPContentHeader): string =
     result = stream.readAll
 
 
-proc sendFrame(conn: AMQPConnection, frameType: uint8, payload: string, channel: uint16 = 0, callback: FrameHandlerProc = nil) = 
-    let frame = AMQPFrame(
+proc sendFrame(chan: AMQPChannel, frameType: uint8, payload: string, channel: uint16 = 0, callback: FrameHandlerProc = nil) = 
+    chan.curFrame = AMQPFrame(
         frameType: frameType,
         channel: swapEndian(channel),
         payloadType: ptString,
@@ -152,30 +153,32 @@ proc sendFrame(conn: AMQPConnection, frameType: uint8, payload: string, channel:
         payloadString: payload
     )
 
-    let sendRes = conn.frameSender(conn, frame)
+    let sendRes = chan.frames.sender(chan)
     if sendRes.error:
         raise newException(AMQPContentError, sendRes.result)
 
     if callback != nil:
-        callback(conn)
+        callback(chan)
 
 
-proc sendContentHeader*(conn: AMQPConnection, header: AMQPContentHeader, channel: uint16) =
+proc sendContentHeader*(chan: AMQPChannel, header: AMQPContentHeader, channel: uint16) =
     ## Sends the content header to the server
     ## 
-    conn.sendFrame(FRAME_CONTENT_HEADER, header.toWire, channel)
+    chan.sendFrame(FRAME_CONTENT_HEADER, header.toWire, channel)
 
-proc sendContentBody*(conn: AMQPConnection, body: string, channel: uint16) =
+proc sendContentBody*(chan: AMQPChannel, body: string, channel: uint16) =
     ## Sends the content body described by the content header
     ## 
-    conn.sendFrame(FRAME_CONTENT_BODY, body, channel)
+    chan.sendFrame(FRAME_CONTENT_BODY, body, channel)
 
 
-proc handleContentHeader*(conn: AMQPConnection, frame: AMQPFrame) =
+proc handleContentHeader*(chan: AMQPChannel) =
     ## Handles an incoming content header
     ## 
+    debug "Content header handler"
     
 
-proc handleContentBody*(conn: AMQPConnection, frame: AMQPFrame) =
+proc handleContentBody*(chan: AMQPChannel) =
     ## Handles incoming content bodies
-    ##     
+    ##
+    debug "Content body handler"

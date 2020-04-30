@@ -16,11 +16,11 @@ const CLASS_ID: uint16 = 50
 
 type AMQPQueueError* = object of AMQPError
 
-proc queueDeclareOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
-proc queueBindOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
-proc queueUnBindOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
-proc queuePurgeOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
-proc queueDeleteOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
+proc queueDeclareOk*(chan: AMQPChannel)
+proc queueBindOk*(chan: AMQPChannel)
+proc queueUnBindOk*(chan: AMQPChannel)
+proc queuePurgeOk*(chan: AMQPChannel)
+proc queueDeleteOk*(chan: AMQPChannel)
 
 var queueMethodMap* = MethodMap()
 queueMethodMap[11] = queueDeclareOk
@@ -30,27 +30,27 @@ queueMethodMap[31] = queuePurgeOk
 queueMethodMap[41] = queueDeleteOk
 
 
-proc sendFrame(conn: AMQPConnection, payloadStrm: Stream, channel: uint16 = 0, callback: FrameHandlerProc = nil) = 
+proc sendFrame(chan: AMQPChannel, payloadStrm: Stream, callback: FrameHandlerProc = nil) = 
     payloadStrm.setPosition(0)
     let payload = payloadStrm.readAll()
 
-    let frame = AMQPFrame(
+    chan.curFrame = AMQPFrame(
         frameType: 1,
-        channel: swapEndian(channel),
+        channel: swapEndian(chan.number),
         payloadType: ptString,
         payloadSize: swapEndian(uint32(payload.len)),
         payloadString: payload
     )
 
-    let sendRes = conn.frameSender(conn, frame)
+    let sendRes = chan.frames.sender(chan)
     if sendRes.error:
         raise newException(AMQPQueueError, sendRes.result)
 
     if callback != nil:
-        callback(conn)
+        callback(chan)
 
 
-proc queueDeclare*(conn: AMQPConnection, queueName: string, passive: bool, durable: bool, exclusive: bool, 
+proc queueDeclare*(chan: AMQPChannel, queueName: string, passive: bool, durable: bool, exclusive: bool, 
                     autoDelete: bool, noWait: bool, arguments: FieldTable, channel: uint16) =
     ## Requests for the server to create a new queue, `queueName` (queue.declare)
     ## 
@@ -79,15 +79,15 @@ proc queueDeclare*(conn: AMQPConnection, queueName: string, passive: bool, durab
     stream.write(args)
 
     debug "Creating queue", queue=queueName
-    sendFrame(conn, stream, channel=channel, callback=conn.frameHandler)
+    chan.sendFrame(stream, callback=chan.frames.handler)
 
 
-proc queueDeclareOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc queueDeclareOk*(chan: AMQPChannel) =
     ## Handles a 'queue.declare-ok' from the server
     debug "Created queue"
 
 
-proc queueBind*(conn: AMQPConnection, queueName: string, exchangeName: string, routingKey: string, noWait: bool, 
+proc queueBind*(chan: AMQPChannel, queueName: string, exchangeName: string, routingKey: string, noWait: bool, 
                 arguments: FieldTable, channel: uint16) =
     ## Bind a queue to an exchange with the provided `routingKey`
     ## 
@@ -125,16 +125,16 @@ proc queueBind*(conn: AMQPConnection, queueName: string, exchangeName: string, r
     stream.write(args)
 
     debug "Binding queue to exchange", queue=queueName, exchange=exchangeName, routingKey=routingKey
-    sendFrame(conn, stream, channel=channel, callback=conn.frameHandler)
+    chan.sendFrame(stream, callback=chan.frames.handler)
 
 
-proc queueBindOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc queueBindOk*(chan: AMQPChannel) =
     ## Server responding to a successful queue.bind request
     ## 
     debug "Bound queue to exchange"
 
 
-proc queueUnBind*(conn: AMQPConnection, queueName: string, exchangeName: string, routingKey: string, 
+proc queueUnBind*(chan: AMQPChannel, queueName: string, exchangeName: string, routingKey: string, 
                     arguments: FieldTable, channel: uint16) =
     ## Unbind a queue from an exchange, provided `routingKey` matches
     ## 
@@ -170,16 +170,16 @@ proc queueUnBind*(conn: AMQPConnection, queueName: string, exchangeName: string,
     stream.write(args)
 
     debug "Unbinding queue from exchange", queue=queueName, exchange=exchangeName
-    sendFrame(conn, stream, channel=channel, callback=conn.frameHandler)
+    chan.sendFrame(stream, callback=chan.frames.handler)
 
 
-proc queueUnBindOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc queueUnBindOk*(chan: AMQPChannel) =
     ## Server responding to a successful queue.unbind request
     ## 
     debug "Unbound queue from exchange"
 
 
-proc queuePurge*(conn: AMQPConnection, queueName: string, noWait: bool, channel: uint16) =
+proc queuePurge*(chan: AMQPChannel, queueName: string, noWait: bool, channel: uint16) =
     ## Purges the `queueName` queue
     ## 
     if queueName.len > 255:
@@ -200,16 +200,16 @@ proc queuePurge*(conn: AMQPConnection, queueName: string, noWait: bool, channel:
     stream.write(uint8(noWait))
 
     debug "Purging queue", queue=queueName
-    sendFrame(conn, stream, channel=channel, callback=conn.frameHandler)
+    chan.sendFrame(stream, callback=chan.frames.handler)
 
 
-proc queuePurgeOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc queuePurgeOk*(chan: AMQPChannel) =
     ## Server responding to a successful queue.purge request
     ## 
     debug "Purged queue"
 
 
-proc queueDelete*(conn: AMQPConnection, queueName: string, ifUnused: bool, ifEmpty: bool, noWait: bool, channel: uint16) =
+proc queueDelete*(chan: AMQPChannel, queueName: string, ifUnused: bool, ifEmpty: bool, noWait: bool, channel: uint16) =
     ## Deletes a queue on the server (queue.delete)
     if queueName.len > 255:
         raise newException(AMQPQueueError, "Queue name must be 255 characters or less")
@@ -231,12 +231,12 @@ proc queueDelete*(conn: AMQPConnection, queueName: string, ifUnused: bool, ifEmp
     stream.write(uint8(bitFields))
 
     debug "Deleting queue", queue=queueName
-    sendFrame(conn, stream, channel=channel, callback=conn.frameHandler)
+    chan.sendFrame(stream, callback=chan.frames.handler)
     
 
-proc queueDeleteOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc queueDeleteOk*(chan: AMQPChannel) =
     ## Handles a 'queue.delete-ok' from the server
-    ## 
-    let delMsgs = swapEndian(stream.readUint32)
+    ##
+    let delMsgs = swapEndian(chan.curFrame.payloadStream.readUint32)
     debug "Deleted queue", numDeletedMsgs=delMsgs
 

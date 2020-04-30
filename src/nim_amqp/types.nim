@@ -30,8 +30,9 @@ type AMQPFrame* = ref object
     of ptString: payloadString*: string
 
 type
-    FrameHandlerProc* = proc(conn: AMQPConnection, preFetched: string = "")
-    
+    FrameHandlerProc* = proc(chan: AMQPChannel, preFetched: string = "")
+    FrameSenderProc* = proc (conn: AMQPChannel): StrWithError
+
     AMQPTuning* = object
         channelMax*: uint16
         frameMax*: uint32
@@ -45,32 +46,43 @@ type
 
     AMQPFrameHandling* = object
         handler*: FrameHandlerProc
-        sender*: proc (conn: AMQPConnection, frame: AMQPFrame): StrWithError
+        sender*: FrameSenderProc
 
-    AMQPConnection* = ref object
+    AMQPConnection* = ref AMQPConnectionObj
+    AMQPConnectionObj = object
         readTimeout*: int
         sock*: Socket
         username*: string
         password*: string
         ready*: bool
         meta*: AMQPConnectionMeta
-        frames*: AMQPFrameHandling
         tuning*: AMQPTuning
 
-    AMQPChannel* = object
+    AMQPChannel* = ref AMQPChannelObj
+    AMQPChannelObj = object
         conn*: AMQPConnection
         number*: uint16
         active*: bool
         flow*: bool
         curFrame*: AMQPFrame
-
-    AMQPCommunication* = tuple[conn: AMQPConnection, chan: AMQPChannel, tracker: AMQPChannelTracker]
-
-    AMQPChannelTracker* = Table[uint16, AMQPChannel]
+        frames*: AMQPFrameHandling
 
 
+proc newAMQPChannel*(conn: AMQPConnection, number: uint16, reciever: FrameHandlerProc, 
+                    sender: FrameSenderProc, framePayloadType = ptStream): AMQPChannel =
+    ## Creates a new AMQPChannel object
+    ##
+    new(result)
+    result.conn = conn
+    result.number = number
+    result.active = true
+    result.curFrame = AMQPFrame(payloadType: framePayloadType)
+    result.frames = AMQPFrameHandling()
+    result.frames.handler = reciever
+    result.frames.sender = sender
 
 
-type DispatchMethod* = proc(comm: var AMQPCommunication)
+
+type DispatchMethod* = proc(chan: AMQPChannel)
 type MethodMap* = Table[uint16, DispatchMethod]
 type DispatchMap* = Table[uint16, MethodMap]

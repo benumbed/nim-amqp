@@ -16,14 +16,14 @@ const CLASS_ID: uint16 = 60
 
 type AMQPBasicError* = object of AMQPError
 
-proc basicQosOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
-proc basicConsumeOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
-proc basicCancelOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
-# proc basicReturn*(conn: AMQPConnection, stream: Stream, channel: uint16)
-# proc basicDeliver*(conn: AMQPConnection, stream: Stream, channel: uint16)
-# proc basicGetOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
-# proc basicGetEmpty*(conn: AMQPConnection, stream: Stream, channel: uint16)
-# proc basicRecoverOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
+proc basicQosOk*(chan: AMQPChannel)
+proc basicConsumeOk*(chan: AMQPChannel)
+proc basicCancelOk*(chan: AMQPChannel)
+# proc basicReturn*(chan: AMQPChannel)
+# proc basicDeliver*(chan: AMQPChannel)
+# proc basicGetOk*(chan: AMQPChannel)
+# proc basicGetEmpty*(chan: AMQPChannel)
+# proc basicRecoverOk*(chan: AMQPChannel)
 
 var basicMethodMap* = MethodMap()
 basicMethodMap[11] = basicQosOk
@@ -36,27 +36,27 @@ basicMethodMap[31] = basicCancelOk
 # basicMethodMap[111] = basicRecoverOk
 
 
-proc sendFrame(conn: AMQPConnection, payloadStrm: Stream, channel: uint16 = 0, callback: FrameHandlerProc = nil) = 
+proc sendFrame(chan: AMQPChannel, payloadStrm: Stream, callback: FrameHandlerProc = nil) = 
     payloadStrm.setPosition(0)
     let payload = payloadStrm.readAll()
 
-    let frame = AMQPFrame(
+    chan.curFrame = AMQPFrame(
         frameType: 1,
-        channel: swapEndian(channel),
+        channel: swapEndian(chan.number),
         payloadType: ptString,
         payloadSize: swapEndian(uint32(payload.len)),
         payloadString: payload
     )
 
-    let sendRes = conn.frames.sender(conn, frame)
+    let sendRes = chan.frames.sender(chan)
     if sendRes.error:
         raise newException(AMQPBasicError, sendRes.result)
 
     if callback != nil:
-        callback(conn)
+        callback(chan)
 
 
-proc basicQos*(conn: AMQPConnection, prefetchCount: uint16, global: bool, channel: uint16) =
+proc basicQos*(chan: AMQPChannel, prefetchCount: uint16, global: bool, channel: uint16) =
     ## Sets QoS parameters on the server.
     ## 
     let stream = newStringStream()
@@ -70,15 +70,15 @@ proc basicQos*(conn: AMQPConnection, prefetchCount: uint16, global: bool, channe
     stream.write(uint8(global))
 
     debug "Setting QoS params", prefetchSize=0, prefetchCount=prefetchCount, global=global
-    sendFrame(conn, stream, channel=channel, callback=conn.frames.handler)
+    chan.sendFrame(stream, callback=chan.frames.handler)
 
 
-proc basicQosOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc basicQosOk*(chan: AMQPChannel) =
     ## Handles a 'basic.qos-ok' from the server
     debug "Successful QoS request"
 
 
-proc basicConsume*(conn: AMQPConnection, queueName: string, consumerTag: string, noLocal: bool, noAck: bool, 
+proc basicConsume*(chan: AMQPChannel, queueName: string, consumerTag: string, noLocal: bool, noAck: bool, 
                     exclusive: bool, noWait: bool, arguments: FieldTable, channel: uint16) =
     ## Starts a consumer
     ## 
@@ -114,18 +114,20 @@ proc basicConsume*(conn: AMQPConnection, queueName: string, consumerTag: string,
 
     debug "Starting a consumer", queue=queueName, consumerTag=consumerTag, noLocal=noLocal, noAck=noAck, 
         exclusive=exclusive, noWait=noWait
-    sendFrame(conn, stream, channel=channel, callback=conn.frames.handler)
+    chan.sendFrame(stream, callback=chan.frames.handler)
 
 
-proc basicConsumeOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc basicConsumeOk*(chan: AMQPChannel) =
     ## Server responding to a successful queue.bind request
     ##
+    let stream = chan.curFrame.payloadStream
+    
     let tagSize = stream.readUint8()
     let tag = stream.readStr(int(tagSize))
     debug "Started consumer", tag=tag
 
 
-proc basicCancel*(conn: AMQPConnection, consumerTag: string, noWait: bool, channel: uint16) =
+proc basicCancel*(chan: AMQPChannel, consumerTag: string, noWait: bool, channel: uint16) =
     ## Unbind a queue from an exchange, provided `routingKey` matches
     ## 
     if consumerTag.len > 255:
@@ -144,18 +146,20 @@ proc basicCancel*(conn: AMQPConnection, consumerTag: string, noWait: bool, chann
     stream.write(uint8(noWait))
 
     debug "Canceling consumer", consumerTag=consumerTag
-    sendFrame(conn, stream, channel=channel, callback=conn.frames.handler)
+    chan.sendFrame(stream, callback=chan.frames.handler)
 
 
-proc basicCancelOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc basicCancelOk*(chan: AMQPChannel) =
     ## Server responding to a successful queue.unbind request
-    ## 
+    ##
+    let stream = chan.curFrame.payloadStream
+
     let tagSize = stream.readUint8()
     let tag = stream.readStr(int(tagSize))
     debug "Canceled consumer", tag=tag
 
 
-proc basicPublish*(conn: AMQPConnection, exchangeName: string, routingKey: string, mandatory: bool, immediate: bool, 
+proc basicPublish*(chan: AMQPChannel, exchangeName: string, routingKey: string, mandatory: bool, immediate: bool, 
                     channel: uint16) =
     ## Publishes a message to an exchange of `exchangeName` using `routingKey`
     ## 
@@ -185,10 +189,10 @@ proc basicPublish*(conn: AMQPConnection, exchangeName: string, routingKey: strin
     stream.write(uint8(bitFields))
 
     debug "Sending basicPublish", exchange=exchangeName, mandatory=mandatory, immediate=immediate
-    sendFrame(conn, stream, channel=channel)
+    chan.sendFrame(stream)
 
 
-proc basicReturn*(conn: AMQPConnection, replyCode: uint16, replyText: string, exchangeName: string, routingKey: string) =
+proc basicReturn*(chan: AMQPChannel, replyCode: uint16, replyText: string, exchangeName: string, routingKey: string) =
     ## 'Returns' a message that could not be processed to the server
     ## 
     

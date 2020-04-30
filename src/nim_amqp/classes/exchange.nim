@@ -16,35 +16,35 @@ const CLASS_ID: uint16 = 40
 
 type AMQPExchangeError* = object of AMQPError
 
-proc exchangeDeclareOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
-proc exchangeDeleteOk*(conn: AMQPConnection, stream: Stream, channel: uint16)
+proc exchangeDeclareOk*(chan: AMQPChannel)
+proc exchangeDeleteOk*(chan: AMQPChannel)
 
 var exchangeMethodMap* = MethodMap()
 exchangeMethodMap[11] = exchangeDeclareOk
 exchangeMethodMap[21] = exchangeDeleteOk
 
 
-proc sendFrame(conn: AMQPConnection, payloadStrm: Stream, channel: uint16 = 0, callback: FrameHandlerProc = nil) = 
+proc sendFrame(chan: AMQPChannel, payloadStrm: Stream, callback: FrameHandlerProc = nil) = 
     payloadStrm.setPosition(0)
     let payload = payloadStrm.readAll()
 
-    let frame = AMQPFrame(
+    chan.curFrame = AMQPFrame(
         frameType: 1,
-        channel: swapEndian(channel),
+        channel: swapEndian(chan.number),
         payloadType: ptString,
         payloadSize: swapEndian(uint32(payload.len)),
         payloadString: payload
     )
 
-    let sendRes = conn.frameSender(conn, frame)
+    let sendRes = chan.frames.sender(chan)
     if sendRes.error:
         raise newException(AMQPExchangeError, sendRes.result)
 
     if callback != nil:
-        callback(conn)
+        callback(chan)
 
 
-proc exchangeDeclare*(conn: AMQPConnection, exchangeName: string, exchangeType: string, passive: bool, durable: bool, 
+proc exchangeDeclare*(chan: AMQPChannel, exchangeName: string, exchangeType: string, passive: bool, durable: bool, 
                       autoDelete: bool, internal: bool, noWait: bool, arguments: FieldTable, channel: uint16) =
     ## Requests for the server to create a new exchange, `exchangeName` (exchange.declare)
     ## 
@@ -79,15 +79,15 @@ proc exchangeDeclare*(conn: AMQPConnection, exchangeName: string, exchangeType: 
     stream.write(args)
 
     debug "Creating exchange", exchange=exchangeName
-    sendFrame(conn, stream, channel=channel, callback=conn.frameHandler)
+    chan.sendFrame(stream, callback=chan.frames.handler)
 
 
-proc exchangeDeclareOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc exchangeDeclareOk*(chan: AMQPChannel) =
     ## Handles a 'exchange.declare-ok' from the server
     debug "Created exchange"
 
 
-proc exchangeDelete*(conn: AMQPConnection, exchangeName: string, ifUnused: bool, noWait: bool, channel: uint16) =
+proc exchangeDelete*(chan: AMQPChannel, exchangeName: string, ifUnused: bool, noWait: bool, channel: uint16) =
     ## Deletes an exchange on the server (exchange.delete)
     if exchangeName.len > 255:
         raise newException(AMQPExchangeError, "Exchange name must be 255 characters or less")
@@ -109,9 +109,9 @@ proc exchangeDelete*(conn: AMQPConnection, exchangeName: string, ifUnused: bool,
     stream.write(uint8(bitFields))
 
     debug "Deleting exchange", exchange=exchangeName
-    sendFrame(conn, stream, channel=channel, callback=conn.frameHandler)
+    chan.sendFrame(stream, callback=chan.frames.handler)
     
 
-proc exchangeDeleteOk*(conn: AMQPConnection, stream: Stream, channel: uint16) =
+proc exchangeDeleteOk*(chan: AMQPChannel) =
     ## Handles a 'exchange.delete-ok' from the server
     debug "Deleted exchange"
