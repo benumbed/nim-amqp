@@ -8,11 +8,11 @@ import unittest
 import nim_amqp/protocol
 import nim_amqp/classes/connection
 
-let conn = newAMQPConnection("localhost", "guest", "guest")
+# let conn = newAMQPConnection("localhost", "guest", "guest")
 
-suite "Tests for the frames module":
+# suite "Tests for the frames module":
 
-    test "Can send heartbeat to server":
+#     test "Can send heartbeat to server":
         
 
-conn.connectionClose()
+# conn.connectionClose()

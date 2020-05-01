@@ -8,15 +8,18 @@ import strformat
 import system
 import asyncnet, asyncdispatch
 
+import nim_amqp/frames
 import nim_amqp/protocol
 import nim_amqp/types
 import nim_amqp/classes/connection
+
+
 
 proc connect*(host, username, password: string, vhost="/", port = 5672, tuning = AMQPTuning()): AMQPConnection =
     ## Creates a new AMQP connection
     result = newAMQPConnection(host, username, password, port)
     result.tuning = tuning
-    result.connectionOpen(vhost)
+    result.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOpen(vhost)
 
 when isMainModule:
     # let ssl_ctx = net.newContext()

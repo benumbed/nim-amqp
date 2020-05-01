@@ -108,7 +108,7 @@ proc channelFlowOk*(chan: AMQPChannel) =
     debug "Server confirmed flow control request", channel=chan.number, flow=chan.flow
 
 
-proc channelClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Normal shutdown", 
+proc channelCloseClient*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Normal shutdown", 
                     classId, methodId: uint16 = 0) = 
     ## Requests for the the server to close a channel (channel.close)
     ## 
@@ -142,7 +142,7 @@ proc channelClose*(chan: AMQPChannel) =
     let meth = swapEndian(stream.readUint16())
 
     debug "Server requested to close channel", code=code, reason=reason, class=class, meth=meth
-    chan.channelCloseOk()
+    chan.channelCloseOkClient()
 
 
 proc channelCloseOkClient*(chan: AMQPChannel) =

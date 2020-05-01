@@ -5,13 +5,15 @@
 ##
 import unittest
 
+import nim_amqp/frames
 import nim_amqp/protocol
+import nim_amqp/types
 import nim_amqp/classes/connection
+
 
 suite "Connection module tests":
     test "Correct SASL credentials do not raise":
-        let conn = newAMQPConnection("localhost", "guest", "guest")
-        conn.connectionClose()
+        discard newAMQPConnection("localhost", "guest", "guest")
 
     test "Incorrect SASL credentials raise":
         expect AMQPConnectionError:
@@ -19,6 +21,6 @@ suite "Connection module tests":
 
     test "Can connect to a vhost":
         let conn = newAMQPConnection("localhost", "guest", "guest")
-
-        conn.connectionOpen("/")
-        conn.connectionClose()
+        let chan = conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame)
+        chan.connectionOpen("/")
+        chan.connectionCloseClient()

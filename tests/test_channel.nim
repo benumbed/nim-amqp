@@ -6,21 +6,17 @@
 import unittest
 import tables
 
+import nim_amqp/frames
+import nim_amqp/types
 import nim_amqp/classes/channel
 import nim_amqp/classes/connection
 import nim_amqp/protocol
 
 let conn = newAMQPConnection("localhost", "guest", "guest")
-conn.connectionOpen("/")
+let chan = conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame)
+chan.connectionOpen("/")
 
 suite "AMQP Channel tests":
-    test "Can open a new channel to the server":
-        conn.channelOpen(1)
-
-        check:
-            1 in conn.openChannels
-
-
     # RabbitMQ does not support flow control using channel.flow
     # test "Can pause and resume flow on an active channel":
     #     conn.channelOpen(12)
@@ -37,16 +33,21 @@ suite "AMQP Channel tests":
     #     conn.channelClose(12)
 
 
-    test "Can close an opened channel":
-        conn.channelOpen(10)
+    test "Can open and close channels":
+        const chanNum = 10
+        let testChan = conn.newAMQPChannel(number=chanNum, frames.handleFrame, frames.sendFrame)
+        testChan.channelOpen()
 
         check:
-            10 in conn.openChannels
+            testChan.active == true
+            testChan.flow == true
+            testChan.number == chanNum
 
-        conn.channelClose(10)
+        testChan.channelClose(chanNum)
 
         check:
-            10 notin conn.openChannels
+            testChan.active == false
+            testChan.number == chanNum
 
 
-conn.connectionClose()
+chan.connectionCloseClient()

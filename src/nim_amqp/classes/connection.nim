@@ -76,7 +76,7 @@ proc connectionTune*(chan: AMQPChannel)
 proc connectionTuneOk*(chan: AMQPChannel)
 proc connectionOpen*(chan: AMQPChannel, vhost: string = "/")
 proc connectionOpenOk*(chan: AMQPChannel)
-proc connectionClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
+proc connectionCloseClient*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
                      methodId: uint16 = 0)
 proc connectionClose*(chan: AMQPChannel)
 proc connectionCloseOkClient*(chan: AMQPChannel)
@@ -285,7 +285,7 @@ proc connectionOpenOk*(chan: AMQPChannel) =
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::close
 # ----------------------------------------------------------------------------------------------------------------------
-proc connectionClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
+proc connectionCloseClient*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
                      methodId: uint16 = 0) =
     ## connection.close -- Client response
     let stream = newStringStream()
@@ -320,7 +320,7 @@ proc connectionClose*(chan: AMQPChannel) =
     let meth = swapEndian(stream.readUint16())
 
     debug "Server requested to close connection", code=code, reason=reason, class=class, meth=meth
-    chan.connectionCloseOk()
+    chan.connectionCloseOkClient()
 
 
 # ----------------------------------------------------------------------------------------------------------------------

@@ -5,36 +5,43 @@
 ##
 import unittest
 
+import nim_amqp/field_table
+import nim_amqp/frames
+import nim_amqp/protocol
+import nim_amqp/types
 import nim_amqp/classes/channel
 import nim_amqp/classes/connection
 import nim_amqp/classes/exchange
 import nim_amqp/classes/queue
 import nim_amqp/classes/basic
-import nim_amqp/protocol
-import nim_amqp/field_table
+
 
 const exchName = "queue-tests-exchange"
 const channelNum = 1
 let conn = newAMQPConnection("localhost", "guest", "guest")
-conn.connectionOpen("/")
-conn.channelOpen(channelNum)
-conn.exchangeDeclare(exchName, "direct", false, true, false, false, false, FieldTable(), channelNum)
+conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOpen("/")
+
+let chan = conn.newAMQPChannel(number=channelNum, frames.handleFrame, frames.sendFrame)
+chan.channelOpen()
+
+chan.exchangeDeclare(exchName, "direct", false, true, false, false, false, FieldTable(), channelNum)
+
 
 suite "AMQP Basic tests":
     test "Can set QoS parameters":
-        conn.basicQos(256, false, channelNum)
+        chan.basicQos(256, false, channelNum)
 
     test "Can start a consumer":
         let qName = "unit-test-basic-consume"
-        conn.queueDeclare(qName, false, true, false, true, false, FieldTable(), channelNum)
-        conn.basicConsume(qName, "", false, false, false, false, FieldTable(), channelNum)
+        chan.queueDeclare(qName, false, true, false, true, false, FieldTable(), channelNum)
+        chan.basicConsume(qName, "", false, false, false, false, FieldTable(), channelNum)
 
     test "Can cancel a consumer":
         let qName = "unit-test-basic-consume-cancel"
-        conn.queueDeclare(qName, false, true, false, true, false, FieldTable(), channelNum)
-        conn.basicConsume(qName, "consumer-cancel-test", false, false, false, false, FieldTable(), channelNum)
-        conn.basicCancel("consumer-cancel-test", false, channelNum)
+        chan.queueDeclare(qName, false, true, false, true, false, FieldTable(), channelNum)
+        chan.basicConsume(qName, "consumer-cancel-test", false, false, false, false, FieldTable(), channelNum)
+        chan.basicCancel("consumer-cancel-test", false, channelNum)
 
-conn.exchangeDelete("queue-tests-exchange", false, false, channelNum)
-conn.channelClose(1)
-conn.connectionClose()
+chan.exchangeDelete("queue-tests-exchange", false, false, channelNum)
+chan.channelCloseClient()
+chan.connectionCloseClient()
