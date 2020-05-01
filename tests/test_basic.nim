@@ -43,5 +43,5 @@ suite "AMQP Basic tests":
         chan.basicCancel("consumer-cancel-test", false, channelNum)
 
 chan.exchangeDelete("queue-tests-exchange", false, false, channelNum)
-chan.channelCloseClient()
-chan.connectionCloseClient()
+chan.channelClose()
+chan.connectionClose()

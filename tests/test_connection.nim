@@ -23,4 +23,4 @@ suite "Connection module tests":
         let conn = newAMQPConnection("localhost", "guest", "guest")
         let chan = conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame)
         chan.connectionOpen("/")
-        chan.connectionCloseClient()
+        chan.connectionClose()

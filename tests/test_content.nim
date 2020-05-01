@@ -69,5 +69,5 @@ suite "Content library tests (pub/sub)":
 
 chan.queueUnBind(queueName, exchName, "content-test", FieldTable(), channelNum)
 chan.exchangeDelete(exchName, false, false, channelNum)
-chan.channelCloseClient()
-chan.connectionCloseClient(reply_text="Test Shutdown")
+chan.channelClose()
+chan.connectionClose(reply_text="Test Shutdown")

@@ -4,7 +4,6 @@
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
 import unittest
-import tables
 
 import nim_amqp/frames
 import nim_amqp/types
@@ -43,11 +42,11 @@ suite "AMQP Channel tests":
             testChan.flow == true
             testChan.number == chanNum
 
-        testChan.channelClose(chanNum)
+        testChan.channelClose()
 
         check:
             testChan.active == false
             testChan.number == chanNum
 
 
-chan.connectionCloseClient()
+chan.connectionClose()

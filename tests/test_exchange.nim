@@ -27,5 +27,5 @@ suite "AMQP Exchange tests":
         chan.exchangeDeclare("unit-test-delete-exchange", "direct", false, true, true, false, false, FieldTable(), 1)
         chan.exchangeDelete("unit-test-delete-exchange", false, false, 1)
 
-chan.channelCloseClient()
-chan.connectionCloseClient()
+chan.channelClose()
+chan.connectionClose()

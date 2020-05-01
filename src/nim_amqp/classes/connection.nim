@@ -76,11 +76,11 @@ proc connectionTune*(chan: AMQPChannel)
 proc connectionTuneOk*(chan: AMQPChannel)
 proc connectionOpen*(chan: AMQPChannel, vhost: string = "/")
 proc connectionOpenOk*(chan: AMQPChannel)
-proc connectionCloseClient*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
+proc connectionClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
                      methodId: uint16 = 0)
-proc connectionClose*(chan: AMQPChannel)
-proc connectionCloseOkClient*(chan: AMQPChannel)
+proc connectionCloseIncoming(chan: AMQPChannel)
 proc connectionCloseOk*(chan: AMQPChannel)
+proc connectionCloseOkIncoming(chan: AMQPChannel)
 proc readConnectionStartArgs*(stream: Stream): ConnectionStartArgs
 proc newConnectionStartOkArgs*(): ConnectionStartOkArgs
 
@@ -90,8 +90,8 @@ connectionMethodMap[10] = connectionStart
 connectionMethodMap[20] = connectionSecure
 connectionMethodMap[30] = connectionTune
 connectionMethodMap[41] = connectionOpenOk
-connectionMethodMap[50] = connectionClose
-connectionMethodMap[51] = connectionCloseOk
+connectionMethodMap[50] = connectionCloseIncoming
+connectionMethodMap[51] = connectionCloseOkIncoming
 
 
 proc sendFrame(chan: AMQPChannel, payload: string, payloadSize: uint32, callback: FrameHandlerProc = nil) = 
@@ -285,7 +285,7 @@ proc connectionOpenOk*(chan: AMQPChannel) =
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::close
 # ----------------------------------------------------------------------------------------------------------------------
-proc connectionCloseClient*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
+proc connectionClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Normal shutdown", classId, 
                      methodId: uint16 = 0) =
     ## connection.close -- Client response
     let stream = newStringStream()
@@ -308,7 +308,7 @@ proc connectionCloseClient*(chan: AMQPChannel, reply_code: uint16 = 200, reply_t
 
 
 #  TODO: Put handlers in this which will handle close errors from server based on provided values
-proc connectionClose*(chan: AMQPChannel) =
+proc connectionCloseIncoming(chan: AMQPChannel) =
     ## connection.close -- Server response
     ##
     let stream = chan.curFrame.payloadStream
@@ -320,7 +320,7 @@ proc connectionClose*(chan: AMQPChannel) =
     let meth = swapEndian(stream.readUint16())
 
     debug "Server requested to close connection", code=code, reason=reason, class=class, meth=meth
-    chan.connectionCloseOkClient()
+    chan.connectionCloseOk()
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -328,7 +328,7 @@ proc connectionClose*(chan: AMQPChannel) =
 # ----------------------------------------------------------------------------------------------------------------------
 
 # TODO: initiate shutdown of the thread/process from here
-proc connectionCloseOkClient*(chan: AMQPChannel) =
+proc connectionCloseOk*(chan: AMQPChannel) =
     ## connection.close-ok implementation -- Client 
     let stream = newStringStream()
 
@@ -343,7 +343,7 @@ proc connectionCloseOkClient*(chan: AMQPChannel) =
     chan.conn.ready = false
 
 
-proc connectionCloseOk*(chan: AMQPChannel) =
+proc connectionCloseOkIncoming(chan: AMQPChannel) =
     ## connection.close-ok -- Server response
     ##
     chan.conn.ready = false

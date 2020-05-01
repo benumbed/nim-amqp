@@ -6,5 +6,5 @@
 
 type StrWithError* = tuple[result: string, error: bool]
 
-type AMQPError* = ref object of system.CatchableError
+type AMQPError* = object of system.CatchableError
 type AMQPNotImplementedError* = object of AMQPError

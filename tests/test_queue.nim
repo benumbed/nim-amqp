@@ -68,5 +68,5 @@ suite "AMQP Queue tests":
         chan.queueDelete(queueName, false, true, false, channelNum)
 
 chan.exchangeDelete("queue-tests-exchange", false, false, channelNum)
-chan.channelCloseClient()
-chan.connectionCloseClient()
+chan.channelClose()
+chan.connectionClose()
