@@ -21,11 +21,11 @@ chan.channelOpen()
 
 suite "AMQP Exchange tests":
     test "Can create a new exchange":
-        chan.exchangeDeclare("unit-test-exchange", "direct", false, true, true, false, false, FieldTable(), 1)
+        chan.exchangeDeclare("unit-test-exchange", "direct", false, true, true, false, false)
 
     test "Can delete an exchange":
-        chan.exchangeDeclare("unit-test-delete-exchange", "direct", false, true, true, false, false, FieldTable(), 1)
-        chan.exchangeDelete("unit-test-delete-exchange", false, false, 1)
+        chan.exchangeDeclare("unit-test-delete-exchange", "direct", false, true, true, false, false)
+        chan.exchangeDelete("unit-test-delete-exchange", false, false)
 
 chan.channelClose()
 chan.connectionClose()

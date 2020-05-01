@@ -24,24 +24,24 @@ conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOp
 let chan = conn.newAMQPChannel(number=channelNum, frames.handleFrame, frames.sendFrame)
 chan.channelOpen()
 
-chan.exchangeDeclare(exchName, "direct", false, true, false, false, false, FieldTable(), channelNum)
+chan.exchangeDeclare(exchName, "direct", false, true, false, false, false)
 
 
 suite "AMQP Basic tests":
     test "Can set QoS parameters":
-        chan.basicQos(256, false, channelNum)
+        chan.basicQos(256, false)
 
     test "Can start a consumer":
         let qName = "unit-test-basic-consume"
-        chan.queueDeclare(qName, false, true, false, true, false, FieldTable(), channelNum)
-        chan.basicConsume(qName, "", false, false, false, false, FieldTable(), channelNum)
+        chan.queueDeclare(qName, false, true, false, true, false)
+        chan.basicConsume(qName, "", false, false, false, false)
 
     test "Can cancel a consumer":
         let qName = "unit-test-basic-consume-cancel"
-        chan.queueDeclare(qName, false, true, false, true, false, FieldTable(), channelNum)
-        chan.basicConsume(qName, "consumer-cancel-test", false, false, false, false, FieldTable(), channelNum)
-        chan.basicCancel("consumer-cancel-test", false, channelNum)
+        chan.queueDeclare(qName, false, true, false, true, false)
+        chan.basicConsume(qName, "consumer-cancel-test", false, false, false, false)
+        chan.basicCancel("consumer-cancel-test", false)
 
-chan.exchangeDelete("queue-tests-exchange", false, false, channelNum)
+chan.exchangeDelete("queue-tests-exchange", false, false)
 chan.channelClose()
 chan.connectionClose()

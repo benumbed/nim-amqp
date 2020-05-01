@@ -10,3 +10,4 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 1.0.6"
+requires "chronicles >= 0.9.0"

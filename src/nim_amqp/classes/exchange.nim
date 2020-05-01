@@ -45,7 +45,7 @@ proc sendFrame(chan: AMQPChannel, payloadStrm: Stream, callback: FrameHandlerPro
 
 
 proc exchangeDeclare*(chan: AMQPChannel, exchangeName: string, exchangeType: string, passive: bool, durable: bool, 
-                      autoDelete: bool, internal: bool, noWait: bool, arguments: FieldTable, channel: uint16) =
+                      autoDelete: bool, internal: bool, noWait: bool, arguments = FieldTable()) =
     ## Requests for the server to create a new exchange, `exchangeName` (exchange.declare)
     ## 
     if exchangeName.len > 255:
@@ -87,7 +87,7 @@ proc exchangeDeclareOk*(chan: AMQPChannel) =
     debug "Created exchange"
 
 
-proc exchangeDelete*(chan: AMQPChannel, exchangeName: string, ifUnused: bool, noWait: bool, channel: uint16) =
+proc exchangeDelete*(chan: AMQPChannel, exchangeName: string, ifUnused: bool, noWait: bool) =
     ## Deletes an exchange on the server (exchange.delete)
     if exchangeName.len > 255:
         raise newException(AMQPExchangeError, "Exchange name must be 255 characters or less")

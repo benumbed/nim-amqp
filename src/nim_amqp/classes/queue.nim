@@ -51,7 +51,7 @@ proc sendFrame(chan: AMQPChannel, payloadStrm: Stream, callback: FrameHandlerPro
 
 
 proc queueDeclare*(chan: AMQPChannel, queueName: string, passive: bool, durable: bool, exclusive: bool, 
-                    autoDelete: bool, noWait: bool, arguments: FieldTable, channel: uint16) =
+                    autoDelete: bool, noWait: bool, arguments = FieldTable()) =
     ## Requests for the server to create a new queue, `queueName` (queue.declare)
     ## 
     if queueName.len > 255:
@@ -88,7 +88,7 @@ proc queueDeclareOk*(chan: AMQPChannel) =
 
 
 proc queueBind*(chan: AMQPChannel, queueName: string, exchangeName: string, routingKey: string, noWait: bool, 
-                arguments: FieldTable, channel: uint16) =
+                arguments = FieldTable()) =
     ## Bind a queue to an exchange with the provided `routingKey`
     ## 
     if queueName.len > 255:
@@ -135,7 +135,7 @@ proc queueBindOk*(chan: AMQPChannel) =
 
 
 proc queueUnBind*(chan: AMQPChannel, queueName: string, exchangeName: string, routingKey: string, 
-                    arguments: FieldTable, channel: uint16) =
+                    arguments = FieldTable()) =
     ## Unbind a queue from an exchange, provided `routingKey` matches
     ## 
     if queueName.len > 255:
@@ -179,7 +179,7 @@ proc queueUnBindOk*(chan: AMQPChannel) =
     debug "Unbound queue from exchange"
 
 
-proc queuePurge*(chan: AMQPChannel, queueName: string, noWait: bool, channel: uint16) =
+proc queuePurge*(chan: AMQPChannel, queueName: string, noWait: bool) =
     ## Purges the `queueName` queue
     ## 
     if queueName.len > 255:
@@ -209,7 +209,7 @@ proc queuePurgeOk*(chan: AMQPChannel) =
     debug "Purged queue"
 
 
-proc queueDelete*(chan: AMQPChannel, queueName: string, ifUnused: bool, ifEmpty: bool, noWait: bool, channel: uint16) =
+proc queueDelete*(chan: AMQPChannel, queueName: string, ifUnused: bool, ifEmpty: bool, noWait: bool) =
     ## Deletes a queue on the server (queue.delete)
     if queueName.len > 255:
         raise newException(AMQPQueueError, "Queue name must be 255 characters or less")

@@ -307,9 +307,8 @@ proc connectionClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="N
     chan.sendFrame(payload, uint32(len(payload)), chan.frames.handler)
 
 
-#  TODO: Put handlers in this which will handle close errors from server based on provided values
 proc connectionCloseIncoming(chan: AMQPChannel) =
-    ## connection.close -- Server response
+    ## connection.close -- Sent from server
     ##
     let stream = chan.curFrame.payloadStream
 
@@ -318,6 +317,9 @@ proc connectionCloseIncoming(chan: AMQPChannel) =
 
     let class = swapEndian(stream.readUint16())
     let meth = swapEndian(stream.readUint16())
+
+    if code != 200:
+        raise newException(AMQPError, fmt"Server unexpectedly closed the connection: code: {code}, reason: {reason}, AMQP Class: {class}, AMQP Method: {meth}")
 
     debug "Server requested to close connection", code=code, reason=reason, class=class, meth=meth
     chan.connectionCloseOk()

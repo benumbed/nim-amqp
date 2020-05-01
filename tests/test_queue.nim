@@ -5,7 +5,6 @@
 ##
 import unittest
 
-import nim_amqp/field_table
 import nim_amqp/frames
 import nim_amqp/protocol
 import nim_amqp/types
@@ -22,51 +21,51 @@ conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOp
 let chan = conn.newAMQPChannel(number=channelNum, frames.handleFrame, frames.sendFrame)
 chan.channelOpen()
 
-chan.exchangeDeclare(exchName, "direct", false, true, false, false, false, FieldTable(), channelNum)
+chan.exchangeDeclare(exchName, "direct", false, true, false, false, false)
 
 suite "AMQP Queue tests":
     test "Can create a new queue":
-        chan.queueDeclare("unit-test-queue", false, true, false, true, false, FieldTable(), channelNum)
+        chan.queueDeclare("unit-test-queue", false, true, false, true, false)
 
     test "Can delete a queue":
-        chan.queueDeclare("unit-test-queue-delete", false, true, false, true, false, FieldTable(), channelNum)
-        chan.queueDelete("unit-test-queue-delete", false, true, false, channelNum)
+        chan.queueDeclare("unit-test-queue-delete", false, true, false, true, false)
+        chan.queueDelete("unit-test-queue-delete", false, true, false)
 
     test "Can bind to exchange":
         const queueName = "unit-test-queue-bind"
-        chan.queueDeclare(queueName, false, true, false, true, false, FieldTable(), channelNum)
+        chan.queueDeclare(queueName, false, true, false, true, false)
 
-        chan.queueBind(queueName, exchName, "banana", false, FieldTable(), channelNum)
+        chan.queueBind(queueName, exchName, "banana", false)
 
-        chan.queueDelete(queueName, false, true, false, channelNum)
+        chan.queueDelete(queueName, false, true, false)
 
     test "Can bind multiple times without error":
         const queueName = "unit-test-queue-multibind"
-        chan.queueDeclare(queueName, false, true, false, true, false, FieldTable(), channelNum)
+        chan.queueDeclare(queueName, false, true, false, true, false)
 
-        chan.queueBind(queueName, exchName, "banana", false, FieldTable(), channelNum)
-        chan.queueBind(queueName, exchName, "banana", false, FieldTable(), channelNum)
-        chan.queueBind(queueName, exchName, "banana", false, FieldTable(), channelNum)
+        chan.queueBind(queueName, exchName, "banana", false)
+        chan.queueBind(queueName, exchName, "banana", false)
+        chan.queueBind(queueName, exchName, "banana", false)
 
-        chan.queueDelete(queueName, false, true, false, channelNum)
+        chan.queueDelete(queueName, false, true, false)
 
     test "Can unbind queue from exchange":
         const queueName = "unit-test-queue-unbind"
-        chan.queueDeclare(queueName, false, true, false, true, false, FieldTable(), channelNum)
+        chan.queueDeclare(queueName, false, true, false, true, false)
 
-        chan.queueBind(queueName, exchName, "banana", false, FieldTable(), channelNum)
-        chan.queueUnBind(queueName, exchName, "banana", FieldTable(), channelNum)
+        chan.queueBind(queueName, exchName, "banana", false)
+        chan.queueUnBind(queueName, exchName, "banana")
 
-        chan.queueDelete(queueName, false, true, false, channelNum)
+        chan.queueDelete(queueName, false, true, false)
 
     test "Can purge queue":
         const queueName = "unit-test-queue-unbind"
-        chan.queueDeclare(queueName, false, true, false, true, false, FieldTable(), channelNum)
+        chan.queueDeclare(queueName, false, true, false, true, false)
 
-        chan.queuePurge(queueName, false, channelNum)
+        chan.queuePurge(queueName, false)
 
-        chan.queueDelete(queueName, false, true, false, channelNum)
+        chan.queueDelete(queueName, false, true, false)
 
-chan.exchangeDelete("queue-tests-exchange", false, false, channelNum)
+chan.exchangeDelete("queue-tests-exchange", false, false)
 chan.channelClose()
 chan.connectionClose()

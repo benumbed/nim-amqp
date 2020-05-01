@@ -56,7 +56,7 @@ proc sendFrame(chan: AMQPChannel, payloadStrm: Stream, callback: FrameHandlerPro
         callback(chan)
 
 
-proc basicQos*(chan: AMQPChannel, prefetchCount: uint16, global: bool, channel: uint16) =
+proc basicQos*(chan: AMQPChannel, prefetchCount: uint16, global: bool) =
     ## Sets QoS parameters on the server.
     ## 
     let stream = newStringStream()
@@ -79,7 +79,7 @@ proc basicQosOk*(chan: AMQPChannel) =
 
 
 proc basicConsume*(chan: AMQPChannel, queueName: string, consumerTag: string, noLocal: bool, noAck: bool, 
-                    exclusive: bool, noWait: bool, arguments: FieldTable, channel: uint16) =
+                    exclusive: bool, noWait: bool, arguments = FieldTable()) =
     ## Starts a consumer
     ## 
     if queueName.len > 255:
@@ -127,7 +127,7 @@ proc basicConsumeOk*(chan: AMQPChannel) =
     debug "Started consumer", tag=tag
 
 
-proc basicCancel*(chan: AMQPChannel, consumerTag: string, noWait: bool, channel: uint16) =
+proc basicCancel*(chan: AMQPChannel, consumerTag: string, noWait: bool) =
     ## Unbind a queue from an exchange, provided `routingKey` matches
     ## 
     if consumerTag.len > 255:
@@ -159,8 +159,7 @@ proc basicCancelOk*(chan: AMQPChannel) =
     debug "Canceled consumer", tag=tag
 
 
-proc basicPublish*(chan: AMQPChannel, exchangeName: string, routingKey: string, mandatory: bool, immediate: bool, 
-                    channel: uint16) =
+proc basicPublish*(chan: AMQPChannel, exchangeName: string, routingKey: string, mandatory: bool, immediate: bool) =
     ## Publishes a message to an exchange of `exchangeName` using `routingKey`
     ## 
     if exchangeName.len > 255:

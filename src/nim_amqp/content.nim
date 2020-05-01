@@ -144,10 +144,10 @@ proc toWire*(this: AMQPContentHeader): string =
     result = stream.readAll
 
 
-proc sendFrame(chan: AMQPChannel, frameType: uint8, payload: string, channel: uint16 = 0, callback: FrameHandlerProc = nil) = 
+proc sendFrame(chan: AMQPChannel, frameType: uint8, payload: string, callback: FrameHandlerProc = nil) = 
     chan.curFrame = AMQPFrame(
         frameType: frameType,
-        channel: swapEndian(channel),
+        channel: swapEndian(chan.number),
         payloadType: ptString,
         payloadSize: swapEndian(uint32(payload.len)),
         payloadString: payload
@@ -161,15 +161,15 @@ proc sendFrame(chan: AMQPChannel, frameType: uint8, payload: string, channel: ui
         callback(chan)
 
 
-proc sendContentHeader*(chan: AMQPChannel, header: AMQPContentHeader, channel: uint16) =
+proc sendContentHeader*(chan: AMQPChannel, header: AMQPContentHeader) =
     ## Sends the content header to the server
     ## 
-    chan.sendFrame(FRAME_CONTENT_HEADER, header.toWire, channel)
+    chan.sendFrame(FRAME_CONTENT_HEADER, header.toWire)
 
-proc sendContentBody*(chan: AMQPChannel, body: string, channel: uint16) =
+proc sendContentBody*(chan: AMQPChannel, body: string) =
     ## Sends the content body described by the content header
     ## 
-    chan.sendFrame(FRAME_CONTENT_BODY, body, channel)
+    chan.sendFrame(FRAME_CONTENT_BODY, body)
 
 
 proc handleContentHeader*(chan: AMQPChannel) =
