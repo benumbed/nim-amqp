@@ -318,11 +318,11 @@ proc connectionCloseIncoming(chan: AMQPChannel) =
     let class = swapEndian(stream.readUint16())
     let meth = swapEndian(stream.readUint16())
 
-    if code != 200:
-        raise newException(AMQPError, fmt"Server unexpectedly closed the connection: code: {code}, reason: {reason}, AMQP Class: {class}, AMQP Method: {meth}")
-
     debug "Server requested to close connection", code=code, reason=reason, class=class, meth=meth
     chan.connectionCloseOk()
+
+    if code != 200:
+        raise newAMQPException(AMQPConnectionError, reason, class, meth, code)
 
 
 # ----------------------------------------------------------------------------------------------------------------------

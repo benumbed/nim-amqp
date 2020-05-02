@@ -22,9 +22,6 @@ proc channelCloseOk*(chan: AMQPChannel)
 proc channelCloseIncoming(chan: AMQPChannel)
 proc channelCloseOkIncoming(chan: AMQPChannel)
 
-####
-### ME: Working on tying state together, like tracking channels and such, the AMQPCommunication tuple is gross
-####
 
 var channelMethodMap*: MethodMap
 channelMethodMap[11] = channelOpenOk
@@ -144,6 +141,8 @@ proc channelCloseIncoming(chan: AMQPChannel) =
     debug "Server requested to close channel", code=code, reason=reason, class=class, meth=meth
     chan.channelCloseOk()
 
+    if code != 200:
+        raise newAMQPException(AMQPChannelError, reason, class, meth, code)
 
 proc channelCloseOk*(chan: AMQPChannel) =
     ## Send a 'channel.close-ok' to the server
@@ -157,7 +156,7 @@ proc channelCloseOk*(chan: AMQPChannel) =
 
     debug "Telling server it's ok to close channel", channel=chan.number
     chan.active = false
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    chan.sendFrame(stream)
 
 
 proc channelCloseOkIncoming(chan: AMQPChannel) = 

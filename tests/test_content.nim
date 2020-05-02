@@ -6,22 +6,16 @@
 import unittest
 
 import nim_amqp
-import nim_amqp/classes/channel
-import nim_amqp/classes/connection
-import nim_amqp/classes/exchange
-import nim_amqp/classes/queue
-import nim_amqp/classes/basic
 import nim_amqp/content
 import nim_amqp/field_table
+import nim_amqp/classes/basic
 
 const exchName = "content-tests-exchange"
 const queueName = "content-tests-queue"
 
 let chan = connect("localhost", "guest", "guest").createChannel()
-
-chan.exchangeDeclare(exchName, "direct", false, true, false, false, false)
-chan.queueDeclare(queueName, false, true, false, true, false)
-chan.queueBind(queueName, exchName, "content-test", false)
+chan.createExchange(exchName, "direct")
+chan.createAndBindQueue(queueName, exchName, "content-test")
 
 suite "Content library tests (pub/sub)":
     # test "Can consume a message from a queue":
@@ -61,8 +55,6 @@ suite "Content library tests (pub/sub)":
         chan.sendContentHeader(header)
         chan.sendContentBody(content)
 
-
-chan.queueUnBind(queueName, exchName, "content-test")
-chan.exchangeDelete(exchName, false, false)
-chan.channelClose()
-chan.connectionClose(reply_text="Test Shutdown")
+# chan.removeQueue(queueName)
+chan.removeExchange(exchName)
+chan.disconnect()

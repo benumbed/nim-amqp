@@ -8,7 +8,6 @@ import streams
 import strformat
 import tables
 
-# import ./class
 import ./errors
 import ./types
 import ./endian
@@ -118,6 +117,7 @@ proc handleMethod(chan: AMQPChannel) =
     let frame = chan.curFrame
     let classId = swapEndian(frame.payloadStream.readUint16())
     let methodId = swapEndian(frame.payloadStream.readUint16())
+    let code = uint16(0)
 
     case classId:
         of uint16(10):
@@ -133,5 +133,4 @@ proc handleMethod(chan: AMQPChannel) =
         of uint16(70):
             txMethodMap[methodId](chan)
         else:
-            raise newException(AMQPFrameError, fmt"Got unknown class ID '{classId}'")
-        
+            raise newAMQPException(AMQPFrameError, fmt"Got unknown class ID '{classId}'", classID, methodID)

@@ -16,12 +16,22 @@ import nim_amqp/protocol
 import nim_amqp/types
 import nim_amqp/classes/connection
 import nim_amqp/classes/channel
+import nim_amqp/classes/exchange
+import nim_amqp/classes/queue
 
 var channelTracking: Table[int, AMQPChannel]
 var nextChannel: int = 0
 
 proc connect*(host, username, password: string, vhost="/", port = 5672, tuning = AMQPTuning()): AMQPConnection =
-    ## Creates a new AMQP connection
+    ## Creates a new AMQP connection, authenticates, and then connects to the provided `vhost`
+    ## 
+    ## `host`: The AMQP host to connect to
+    ## `username`: Username to use to authenticate
+    ## `password`: Password to use to authenticate
+    ## `vhost`: vhost to connect to, defaults to '/'
+    ## `port`: Port number on the server to connect to, defaults to 5672
+    ## `tuning`: AMQP tuning parameters, defaults to blank structure
+    ##
     result = newAMQPConnection(host, username, password, port)
     result.tuning = tuning
     result.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOpen(vhost)
@@ -40,7 +50,7 @@ proc assignAvailableChannel(conn: AMQPConnection): AMQPChannel =
     var chNum = 1   # Channel 0 is reserved
     while chNum <= int(conn.tuning.channelMax):
         if int(chNum) notin channelTracking or not channelTracking[chNum].active:
-            nextChannel = if (chNum == int(conn.tuning.channelMax)): 1 else: chNum + 1
+            nextChannel = chNum # Assign it the current channel because it will increment on the next call of this proc
             channelTracking[chNum] = conn.newAMQPChannel(number=uint16(chNum), frames.handleFrame, frames.sendFrame)
             return channelTracking[chNum]
 
@@ -48,26 +58,35 @@ proc assignAvailableChannel(conn: AMQPConnection): AMQPChannel =
 
 
 proc createChannel*(conn: AMQPConnection): AMQPChannel =
-    ## Creates a new channel on the existing connection.
+    ## Creates a new channel on the existing connection.  Note that nim-amqp manages the channel numbers for you at the
+    ## current time.  In the future, manual management will be made available.
     ##
     result = conn.assignAvailableChannel()
     result.channelOpen()
 
 
 proc removeChannel*(chan: AMQPChannel) =
-    ## Removes the provided channel, and closes it on the server
+    ## Removes the channel, and closes it on the server.
     ##
     if int(chan.number) notin channelTracking:
         raise newException(AMQPError, fmt"Provided channel '{chan.number}' isn't in the global channel tracking table")
 
     chan.channelClose()
     chan.active = false
-    channelTracking.del(int(chan.number))
 
 
-proc createExchange*(chan: AMQPChannel, exchangeName: string, exchangeType: string, passive: bool, durable: bool, 
-                      autoDelete: bool, internal: bool, noWait: bool, arguments = FieldTable()) = 
+proc disconnect*(chan: AMQPChannel) =
+    ## Nicely disconnects from the server (sets 200 status on connection.close)
+    ## 
+    if chan.active:
+        chan.removeChannel()
+    chan.connectionClose()
+
+
+proc createExchange*(chan: AMQPChannel, exchangeName, exchangeType: string, passive = false, durable = true, 
+                    autoDelete = false, internal = false, noWait = false, arguments = FieldTable()) = 
     ## Creates a new exchange on the server
+    ## 
     ## `exchangeName`: The name of the exchange to create
     ## `exchangeType`: Type of exchange to create (direct, fanout, topic, headers)
     ## `passive`: If true, will not raise an error when attempting to create an exchange that already exists. When this
@@ -77,11 +96,46 @@ proc createExchange*(chan: AMQPChannel, exchangeName: string, exchangeType: stri
     ## `internal`: This exchange will not be visible to publishers, and can only connect to other exchanges
     ## `noWait`: Indicates client is not waiting for exchange creation
     ## `arguments`: field-table passed to server. This is server implementation specific.
+    ##
+    chan.exchangeDeclare(exchangeName, exchangeType, passive, durable, autoDelete, internal, noWait, arguments)
 
 
-proc removeExchange*(chan: AMQPChannel, exchangeName: string, ifUnused: bool, noWait: bool) =
+proc removeExchange*(chan: AMQPChannel, exchangeName: string, ifUnused = false, noWait = false) =
     ## Removes an exchange from the server
     ##
+    chan.exchangeDelete(exchangeName, ifUnused, noWait)
+
+
+proc bindQueueToExchange*(chan: AMQPChannel, queueName, exchangeName, routingKey: string, noWait = false, 
+                            arguments = FieldTable()) =
+    ## Binds a queue `queueName` to exchange `exchangeName` using `routingKey`
+    ##
+    ## `queueName`: Name of the queue to bind
+    ## `exchangeName`: Name of the exchange to bind to
+    ## `routingKey`: Routing key to associate with queue on the exchange
+    ## `noWait`: Tell server to not send a response
+    ##
+    chan.queueBind(queueName, exchangeName, routingKey, noWait, arguments)
+
+
+proc createAndBindQueue*(chan: AMQPChannel, queueName, exchangeName, routingKey: string, noWait = false, 
+                            arguments = FieldTable()) =
+    ## Creates a queue then binds it to the specified queue with `routingKey`.  This proc does not expose all the 
+    ## functionality of `createQueue`, and will simply create a non-exclusive, durable queue.
+    ## 
+    ## `queueName`: Name of the queue to create, and bind
+    ## `exchangeName`: Name of the exchange to bind to
+    ## `routingKey`: Routing key to associate with queue on the exchange
+    ## `noWait`: Tell server to not send a response
+    ##
+    chan.queueDeclare(queueName, durable = true, exclusive = false, noWait=noWait)
+    chan.queueBind(queueName, exchangeName, routingKey, noWait=noWait)
+
+
+proc removeQueue*(chan: AMQPChannel, queueName: string, ifUnused = false, ifEmpty = false, noWait = false) = 
+    ## Removes a queue from the server.  Removing a queue will also automatically unbind the queue from any exchanges
+    ##
+    chan.queueDelete(queueName, ifUnused, ifEmpty, noWait)
 
 
 proc publish*(chan: AMQPChannel) =

@@ -50,8 +50,8 @@ proc sendFrame(chan: AMQPChannel, payloadStrm: Stream, callback: FrameHandlerPro
         callback(chan)
 
 
-proc queueDeclare*(chan: AMQPChannel, queueName: string, passive: bool, durable: bool, exclusive: bool, 
-                    autoDelete: bool, noWait: bool, arguments = FieldTable()) =
+proc queueDeclare*(chan: AMQPChannel, queueName: string, passive = false, durable = false, exclusive = false, 
+                    autoDelete = false, noWait = false, arguments = FieldTable()) =
     ## Requests for the server to create a new queue, `queueName` (queue.declare)
     ## 
     if queueName.len > 255:
@@ -87,7 +87,7 @@ proc queueDeclareOk*(chan: AMQPChannel) =
     debug "Created queue"
 
 
-proc queueBind*(chan: AMQPChannel, queueName: string, exchangeName: string, routingKey: string, noWait: bool, 
+proc queueBind*(chan: AMQPChannel, queueName: string, exchangeName: string, routingKey: string, noWait = false, 
                 arguments = FieldTable()) =
     ## Bind a queue to an exchange with the provided `routingKey`
     ## 
@@ -209,7 +209,7 @@ proc queuePurgeOk*(chan: AMQPChannel) =
     debug "Purged queue"
 
 
-proc queueDelete*(chan: AMQPChannel, queueName: string, ifUnused: bool, ifEmpty: bool, noWait: bool) =
+proc queueDelete*(chan: AMQPChannel, queueName: string, ifUnused = false, ifEmpty = false, noWait = false) =
     ## Deletes a queue on the server (queue.delete)
     if queueName.len > 255:
         raise newException(AMQPQueueError, "Queue name must be 255 characters or less")
