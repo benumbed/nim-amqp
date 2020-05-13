@@ -24,31 +24,6 @@ type AMQPPropertyError* = object of AMQPError
 #   Content can be split up into multiple frames to accomodate frame-size restrictions
 # Remember that headers and content bodies are all contained in AMQP frames
 
-type
-    AMQPBasicProperties* = object
-        contentType*: string         # MIME type
-        contentEncoding*: string     # MIME encoding
-        headers*: FieldTable
-        deliveryMode*: uint8         # non-persistent (1) or persistent (2)
-        priority*: uint8 
-        correlationId*: string
-        replyTo*: string
-        expiration*: string
-        messageId*: string
-        timestamp*: uint64
-        messageType*: string         # `type`
-        userId*: string
-        appId*: string
-        reserved*: string            # Must be empty
-
-
-    AMQPContentHeader* = object
-        classId*: uint16
-        # This is unused
-        weight*: uint16
-        bodySize*: uint64
-        propertyFlags*: uint16
-        propertyList*: AMQPBasicProperties
 
 # This is used to set the propertyFlags bitfield properly
 const PROPERTY_ORDERING = [
@@ -175,8 +150,16 @@ proc sendContentBody*(chan: AMQPChannel, body: string) =
 proc handleContentHeader*(chan: AMQPChannel) =
     ## Handles an incoming content header
     ## 
-    debug "Content header handler"
-    
+    let stream = chan.curFrame.payloadStream
+
+    let classId = swapEndian(stream.readUint16())
+    let weight = swapEndian(stream.readUint16())
+    let bodySize = swapEndian(stream.readUint64())
+    # TODO: Parse the flags
+    let propFlags = swapEndian(stream.readUint16())
+
+    debug "Content Header", classId=classId, weight=weight, bodySize=bodySize, propFlags=propFlags
+
 
 proc handleContentBody*(chan: AMQPChannel) =
     ## Handles incoming content bodies

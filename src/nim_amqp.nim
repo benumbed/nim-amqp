@@ -144,6 +144,7 @@ proc publish*(chan: AMQPChannel) =
     ## Publish a message to the server
     ##
 
+
 proc startBlockingConsumer*(chan: AMQPChannel) = 
     ## Starts a consumer process
     ## NOTE: This function enters a blocking loop, and will not return until the connection is terminated!
@@ -151,7 +152,9 @@ proc startBlockingConsumer*(chan: AMQPChannel) =
     ##
     info "Starting a blocking consumer"
     while chan.active and chan.conn.ready:
+        # TODO: reconnect if needed
         chan.handleFrame
+
 
 proc startAsyncConsumer*(chan: AMQPChannel) =
     ## Starts an async-compatible consumer

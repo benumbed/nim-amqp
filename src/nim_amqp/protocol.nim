@@ -22,6 +22,7 @@ proc newAMQPChannel*(conn: AMQPConnection, number: uint16, reciever: FrameHandle
     result.number = number
     result.active = true
     result.curFrame = AMQPFrame(payloadType: framePayloadType)
+    result.curContentHeader = AMQPContentHeader()
     result.frames = AMQPFrameHandling()
     result.frames.handler = reciever
     result.frames.sender = sender
