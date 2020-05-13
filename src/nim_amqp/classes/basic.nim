@@ -20,7 +20,7 @@ proc basicQosOk*(chan: AMQPChannel)
 proc basicConsumeOk*(chan: AMQPChannel)
 proc basicCancelOk*(chan: AMQPChannel)
 # proc basicReturn*(chan: AMQPChannel)
-# proc basicDeliver*(chan: AMQPChannel)
+proc basicDeliver*(chan: AMQPChannel)
 # proc basicGetOk*(chan: AMQPChannel)
 # proc basicGetEmpty*(chan: AMQPChannel)
 # proc basicRecoverOk*(chan: AMQPChannel)
@@ -30,7 +30,7 @@ basicMethodMap[11] = basicQosOk
 basicMethodMap[21] = basicConsumeOk
 basicMethodMap[31] = basicCancelOk
 # basicMethodMap[50] = basicReturn
-# basicMethodMap[60] = basicDeliver
+basicMethodMap[60] = basicDeliver
 # basicMethodMap[71] = basicGetOk
 # basicMethodMap[72] = basicGetEmpty
 # basicMethodMap[111] = basicRecoverOk
@@ -195,3 +195,24 @@ proc basicReturn*(chan: AMQPChannel, replyCode: uint16, replyText: string, excha
     ## 'Returns' a message that could not be processed to the server
     ## 
     
+proc basicDeliver(chan: AMQPChannel) = 
+    ## Handles a basic.deliver from the server
+    ##
+    let stream = chan.curFrame.payloadStream
+    
+    # consumer-tag
+    let conTagSize = stream.readUint8()
+    let consumerTag = stream.readStr(int(conTagSize))
+    # delivery-tag
+    let deliveryTag = swapEndian(stream.readUint64())
+    # redelivered
+    let redelivered = bool(stream.readUint8())
+    # exchange-name
+    let exchNameSize = stream.readUint8()
+    let exchangeName = stream.readStr(int(exchNameSize))
+    # routing-key
+    let keySize = stream.readUint8()
+    let routingKey = stream.readStr(int(keySize))
+
+    debug "basic.deliver", consumerTag=consumerTag, deliveryTag=deliveryTag, redelivered=redelivered, 
+        exchangeName=exchangeName, routingKey=routingKey

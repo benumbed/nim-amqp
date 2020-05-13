@@ -18,3 +18,4 @@ template newAMQPException*(exceptn: typedesc, message: string, classId: uint16 =
 
 
 type AMQPNotImplementedError* = object of AMQPError
+type AMQPVersionError* = object of AMQPError

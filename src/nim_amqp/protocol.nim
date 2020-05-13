@@ -4,7 +4,6 @@
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
 import net
-import strformat
 
 import ./errors
 import ./frames
@@ -14,7 +13,18 @@ import ./utils
 type AMQPProtocolError* = object of AMQPError
 type AMQPVersionError* = object of AMQPError
 
-proc negotiateVersion(conn: AMQPConnection)
+proc newAMQPChannel*(conn: AMQPConnection, number: uint16, reciever: FrameHandlerProc, 
+                    sender: FrameSenderProc, framePayloadType = ptStream): AMQPChannel =
+    ## Creates a new AMQPChannel object
+    ##
+    new(result)
+    result.conn = conn
+    result.number = number
+    result.active = true
+    result.curFrame = AMQPFrame(payloadType: framePayloadType)
+    result.frames = AMQPFrameHandling()
+    result.frames.handler = reciever
+    result.frames.sender = sender
 
 
 proc newAMQPConnection*(host, username, password: string, port = 5672, connectTimeout = 500, readTimeout = 500, 
@@ -28,22 +38,11 @@ proc newAMQPConnection*(host, username, password: string, port = 5672, connectTi
     result.username = username
     result.password = password
 
-    result.negotiateVersion()
-
-
-proc negotiateVersion(conn: AMQPConnection) =
-    let sent = conn.sock.trySend(wireAMQPVersion(conn.meta.version))
+    let sent = result.sock.trySend(wireAMQPVersion(result.meta.version))
     if not sent:
         raise newException(AMQPVersionError, "Failed to send AMQP version string")
 
-    # Read only the header, unless it's a version response, then we're missing a byte (will be handled elsewhere)
-    var data = conn.sock.recv(7, conn.readTimeout)
+    # This is to make sure that the resulting data from the server is properly handled
+    result.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).handleFrame
 
-    if data[0..3] == "AMQP":
-        data.add(conn.sock.recv(1, conn.readTimeout))
-        raise newException(AMQPVersionError, 
-            fmt"Server does not support {conn.meta.version}, sent: {data.readRawAMQPVersion()}")
-    
-    # Handle the rest of the connection initiation
-    let chan = conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame)
-    chan.frames.handler(chan, preFetched=data)
+    result.ready = true

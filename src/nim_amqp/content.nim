@@ -182,3 +182,4 @@ proc handleContentBody*(chan: AMQPChannel) =
     ## Handles incoming content bodies
     ##
     debug "Content body handler"
+    echo chan.curFrame.payloadStream.readAll()

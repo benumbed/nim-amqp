@@ -3,6 +3,7 @@
 ##
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
+import asyncnet
 import net
 import streams
 import tables
@@ -30,7 +31,7 @@ type AMQPFrame* = ref object
     of ptString: payloadString*: string
 
 type
-    FrameHandlerProc* = proc(chan: AMQPChannel, preFetched: string = "")
+    FrameHandlerProc* = proc(chan: AMQPChannel, blocking = true)
     FrameSenderProc* = proc (conn: AMQPChannel): StrWithError
 
     AMQPTuning* = object
@@ -48,15 +49,19 @@ type
         handler*: FrameHandlerProc
         sender*: FrameSenderProc
 
-    AMQPConnection* = ref AMQPConnectionObj
-    AMQPConnectionObj = object
+    AMQPConnectionObj = ref object of RootObj
         readTimeout*: int
-        sock*: Socket
         username*: string
         password*: string
         ready*: bool
         meta*: AMQPConnectionMeta
         tuning*: AMQPTuning
+
+    AMQPAsyncConnection* = ref object of AMQPConnectionObj
+        sock*: AsyncSocket
+
+    AMQPConnection* = ref object of AMQPConnectionObj
+        sock*: Socket
 
     AMQPChannel* = ref AMQPChannelObj
     AMQPChannelObj = object
@@ -66,21 +71,6 @@ type
         flow*: bool
         curFrame*: AMQPFrame
         frames*: AMQPFrameHandling
-
-
-proc newAMQPChannel*(conn: AMQPConnection, number: uint16, reciever: FrameHandlerProc, 
-                    sender: FrameSenderProc, framePayloadType = ptStream): AMQPChannel =
-    ## Creates a new AMQPChannel object
-    ##
-    new(result)
-    result.conn = conn
-    result.number = number
-    result.active = true
-    result.curFrame = AMQPFrame(payloadType: framePayloadType)
-    result.frames = AMQPFrameHandling()
-    result.frames.handler = reciever
-    result.frames.sender = sender
-
 
 
 type DispatchMethod* = proc(chan: AMQPChannel)

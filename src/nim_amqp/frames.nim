@@ -3,15 +3,18 @@
 ##
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
+import chronicles
+import nativesockets
 import net
 import streams
 import strformat
 import tables
 
+import ./content
+import ./endian
 import ./errors
 import ./types
-import ./endian
-import ./content
+import ./utils
 import ./classes/basic
 import ./classes/channel
 import ./classes/connection
@@ -22,6 +25,14 @@ import ./classes/tx
 type AMQPFrameError* = object of AMQPError
 
 proc handleMethod(chan: AMQPChannel)
+proc handleHeartbeat(chan: AMQPChannel)
+
+
+proc waitForFrame*(chan: AMQPChannel, timeout = -1) = 
+    ## Blocks while waiting for data on the wire.  If `timeout` is -1, this method will block indefinitely.
+    ##
+    var sockFd = @[chan.conn.sock.getFd]
+    discard selectRead(sockFd, timeout)
 
 
 proc sendFrame*(chan: AMQPChannel): StrWithError =
@@ -57,37 +68,54 @@ proc sendFrame*(chan: AMQPChannel): StrWithError =
     return ("", false)
 
 
-proc handleFrame*(chan: AMQPChannel, preFetched: string = "") =
+proc handleFrame*(chan: AMQPChannel, blocking = true) =
     ## Reads an AMQP frame off the wire and checks/parses it.  This is based on the
     ## Advanced Message Queueing Protocol Specification, Section 2.3.5.
-    ## `amqpVersion` must be in dotted notation
     ##
     chan.curFrame = AMQPFrame(payloadType: ptStream)
     let conn = chan.conn
     let frame = chan.curFrame
-    let stream = newStringStream(preFetched)
+    frame.payloadStream = newStringStream()
+
+    # We only block if requsted AND there's no data buffered AND the connection to the server has been fully 
+    # established/negotiated
+    if blocking and chan.active and chan.conn.ready and not chan.conn.sock.hasDataBuffered:
+        var sockFd = @[chan.conn.sock.getFd]
+        discard selectRead(sockFd, -1)
     
+    var initialData: Stream
+    try:
+        initialData = newStringStream(conn.sock.recv(8, conn.readTimeout))
+    except TimeoutError:
+        if not chan.active or not chan.conn.ready:
+            raise
+        return
+
+    # If this is the first 'frame' we've handled, we have to make sure the server's not attempting to do a 
+    # version renegotiation
+    if chan.active and not chan.conn.ready and initialData.peekStr(4) == "AMQP":
+        raise newException(AMQPVersionError, 
+                fmt"Server does not support {conn.meta.version}, sent: {initialData.readAll().readRawAMQPVersion()}")
+
     # TODO: Handle errors, see 2.3.7 in the spec
     #  This will involve looking for a closed connection, then reading error codes/strings
 
-    # Version negotiation pre-fetches 7B, so we need to account for that
-    if preFetched.len == 0:
-        stream.write(conn.sock.recv(7, conn.readTimeout))
+    initialData.setPosition(0)
 
-    stream.setPosition(0)
+    frame.frameType = initialData.readUint8()
+    initialData.readNumericEndian(frame.channel)
+    initialData.readNumericEndian(frame.payloadSize)
 
-    frame.frameType = stream.readUint8()
-    stream.readNumericEndian(frame.channel)
-    stream.readNumericEndian(frame.payloadSize)
-
-    # Frame-end is a single octet that must be set to 0xCE (thus the +1)
-    let payload_plus_frame_end = conn.sock.recv(int(frame.payloadSize)+1, conn.readTimeout)
+    # We've already fetched 8 bytes above (7+1), so we skip adding an extra byte of fetch here for 0xCE
+    let data = conn.sock.recv(int(frame.payloadSize), conn.readTimeout)
     
     # Ensure the frame-end octet matches the spec
-    if byte(payload_plus_frame_end[frame.payloadSize]) != 0xCE:
+    if byte(data[frame.payloadSize-1]) != 0xCE:
         raise newException(AMQPFrameError, "Corrupt frame, missing 0xCE ending marker")
 
-    frame.payloadStream = newStringStream(payload_plus_frame_end[0..(frame.payloadSize-1)])
+    frame.payloadStream.write(initialData.readUint8)
+    frame.payloadStream.write(data[0..(frame.payloadSize-1)])   # We don't write the 0xCE to the stream
+    frame.payloadStream.setPosition(0)
 
     case frame.frameType:
         # METHOD
@@ -100,7 +128,8 @@ proc handleFrame*(chan: AMQPChannel, preFetched: string = "") =
         of 3:
             chan.handleContentBody()
         # HEARTBEAT
-        # of 4:
+        of 4:
+            chan.handleHeartbeat()
         else:
             raise newException(AMQPFrameError, fmt"Got unexpected frame type '{frame.frameType}'")
 
@@ -108,6 +137,7 @@ proc handleFrame*(chan: AMQPChannel, preFetched: string = "") =
 proc handleHeartbeat(chan: AMQPChannel) = 
     ## Handles a heartbeat from the server
     ##
+    warn "Got a heartbeat but there's no handler yet"
     return
 
 
@@ -117,7 +147,6 @@ proc handleMethod(chan: AMQPChannel) =
     let frame = chan.curFrame
     let classId = swapEndian(frame.payloadStream.readUint16())
     let methodId = swapEndian(frame.payloadStream.readUint16())
-    let code = uint16(0)
 
     case classId:
         of uint16(10):

@@ -3,7 +3,8 @@
 ##
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
-# import net
+import chronicles
+import net
 import asyncnet, asyncdispatch
 import strformat
 import system
@@ -14,6 +15,7 @@ import nim_amqp/frames
 import nim_amqp/field_table
 import nim_amqp/protocol
 import nim_amqp/types
+import nim_amqp/classes/basic
 import nim_amqp/classes/connection
 import nim_amqp/classes/channel
 import nim_amqp/classes/exchange
@@ -146,6 +148,10 @@ proc startBlockingConsumer*(chan: AMQPChannel) =
     ## Starts a consumer process
     ## NOTE: This function enters a blocking loop, and will not return until the connection is terminated!
     ## (TODO: Define a way to register callbacks for recieved messages)
+    ##
+    info "Starting a blocking consumer"
+    while chan.active and chan.conn.ready:
+        chan.handleFrame
 
 proc startAsyncConsumer*(chan: AMQPChannel) =
     ## Starts an async-compatible consumer
@@ -153,14 +159,8 @@ proc startAsyncConsumer*(chan: AMQPChannel) =
 
 
 when isMainModule:
-    # let ssl_ctx = net.newContext()
-    var sock = newAsyncSocket()
-    # var sock = newSocket(buffered=true)
-    waitFor sock.connect("localhost", Port(5672))
-    # asyncnet.wrapSocket(ssl_ctx, sock)
-
-    # let frame = sock.readFrame()
-
-    runForever()
-
-    sock.close()
+    let chan = connect("localhost", "guest", "guest").createChannel()
+    chan.createExchange("nim_amqp_test", "direct")
+    chan.createAndBindQueue("nim_ampq_test_queue", "nim_amqp_test", "content-test")
+    chan.basicConsume("nim_ampq_test_queue", "content-test", false, false, false, false)
+    chan.startBlockingConsumer
