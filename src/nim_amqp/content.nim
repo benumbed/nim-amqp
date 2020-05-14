@@ -65,6 +65,15 @@ proc writeUint[T](stream: StringStream, val: T, propName: string, flags: var uin
         stream.write(swapEndianIfNeeded(val))
         flags = flags or (uint16(1) shl PROPERTY_ORDERING[propName])
 
+proc basicPropsFromWire*(wireProps: string, flags: uint16): AMQPBasicProperties =
+    ## Converts the wire versions of a basic-properties table to a Nim struct
+    ##
+    var i = 1;
+    while i <= 15:
+        let curFlag = uint16(1) shl i
+        let flag = (flags and curFlag) == curFlag
+        echo fmt"bit: {i} state: {flag}"
+        i.inc
 
 proc toWire*(this: AMQPBasicProperties): (string, uint16) =
     ## Converts basic properties to a format suitable for the wire
@@ -157,6 +166,11 @@ proc handleContentHeader*(chan: AMQPChannel) =
     let bodySize = swapEndian(stream.readUint64())
     # TODO: Parse the flags
     let propFlags = swapEndian(stream.readUint16())
+
+    discard basicPropsFromWire("", propFlags)
+
+    let header = AMQPContentHeader(classId:classId, weight:weight, bodySize:bodySize, propertyFlags:propFlags,
+                                    propertyList:AMQPBasicProperties())
 
     debug "Content Header", classId=classId, weight=weight, bodySize=bodySize, propFlags=propFlags
 

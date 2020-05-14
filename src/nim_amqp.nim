@@ -23,6 +23,7 @@ import nim_amqp/classes/queue
 
 var channelTracking: Table[int, AMQPChannel]
 var nextChannel: int = 0
+var consumerLoopRunning = false
 
 proc connect*(host, username, password: string, vhost="/", port = 5672, tuning = AMQPTuning()): AMQPConnection =
     ## Creates a new AMQP connection, authenticates, and then connects to the provided `vhost`
@@ -145,15 +146,24 @@ proc publish*(chan: AMQPChannel) =
     ##
 
 
-proc startBlockingConsumer*(chan: AMQPChannel) = 
+proc startBlockingConsumer*(chan: AMQPChannel) =
     ## Starts a consumer process
     ## NOTE: This function enters a blocking loop, and will not return until the connection is terminated!
     ## (TODO: Define a way to register callbacks for recieved messages)
     ##
     info "Starting a blocking consumer"
-    while chan.active and chan.conn.ready:
+    consumerLoopRunning = true
+    proc killLoop() {.noconv.} =
+      info "Keyboard interrupt received, exiting loop"
+      consumerLoopRunning = false
+
+    setControlCHook(killLoop)
+
+    while consumerLoopRunning and chan.active and chan.conn.ready:
         # TODO: reconnect if needed
         chan.handleFrame
+
+    unsetControlCHook()
 
 
 proc startAsyncConsumer*(chan: AMQPChannel) =
@@ -164,6 +174,7 @@ proc startAsyncConsumer*(chan: AMQPChannel) =
 when isMainModule:
     let chan = connect("localhost", "guest", "guest").createChannel()
     chan.createExchange("nim_amqp_test", "direct")
-    chan.createAndBindQueue("nim_ampq_test_queue", "nim_amqp_test", "content-test")
-    chan.basicConsume("nim_ampq_test_queue", "content-test", false, false, false, false)
+    chan.createAndBindQueue("nim_amqp_test_queue", "nim_amqp_test", "content-test")
+    chan.basicConsume("nim_amqp_test_queue", "content-test", false, false, false, false)
     chan.startBlockingConsumer
+    quit(0)
