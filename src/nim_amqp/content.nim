@@ -31,16 +31,16 @@ const PROPERTY_ORDERING = [
     ("contentEncoding", 14),
     ("headers", 13),
     ("deliveryMode", 12),
-    ("priority", 12),
-    ("correlationId", 11),
-    ("replyTo", 10),
-    ("expiration", 9),
-    ("messageId", 8),
-    ("timestamp", 7),
-    ("messageType", 6),
-    ("userId", 5),
-    ("appId", 4),
-    ("reserved", 3),
+    ("priority", 11),
+    ("correlationId", 10),
+    ("replyTo", 9),
+    ("expiration", 8),
+    ("messageId", 7),
+    ("timestamp", 6),
+    ("messageType", 5),
+    ("userId", 4),
+    ("appId", 3),
+    ("reserved", 2),
 ].toOrderedTable
 
 
@@ -65,29 +65,58 @@ proc writeUint[T](stream: StringStream, val: T, propName: string, flags: var uin
         stream.write(swapEndianIfNeeded(val))
         flags = flags or (uint16(1) shl PROPERTY_ORDERING[propName])
 
+
 proc populateProps(props: var AMQPBasicProperties, stream: Stream, flagId: int) =
     ## Sets a property in the provided data-structure
     case flagId:
-        # content_type
         of 15:
-            let ctSize = swapEndian(stream.readUint32)
-            let ctStr = stream.readStr(int(ctSize))
-            props.contentType = ctStr
+            props.contentType = stream.readStr(int(stream.readUint8))
+        of 14:
+            props.contentEncoding = stream.readStr(int(stream.readUint8))
+        of 13:
+            let headerSize = swapEndian(stream.readUint32)
+            props.headers = FieldTable()
+            if headerSize != 0:
+                props.headers = stream.extractFieldTable
+        of 12:
+            props.deliveryMode = stream.readUint8
+        of 11:
+            props.priority = stream.readUint8
+        of 10:
+            props.correlationId = stream.readStr(int(stream.readUint8))
+        of 9:
+            props.replyTo = stream.readStr(int(stream.readUint8))
+        of 8:
+            props.expiration = stream.readStr(int(stream.readUint8))
+        of 7:
+            props.messageId = stream.readStr(int(stream.readUint8))
+        of 6:
+            props.messageId = stream.readStr(int(stream.readUint8))
+        of 5:
+            props.messageId = stream.readStr(int(stream.readUint8))
+        of 4:
+            props.timestamp = swapEndian(stream.readUint64)
+        of 3:
+            props.appId = stream.readStr(int(stream.readUint8))
+        of 2:
+            props.reserved = stream.readStr(int(stream.readUint8))
+        # TODO: AMQP specifies that if the 0 bit is set, than there's another flag short following this one
         else:
-            let warning = fmt"Unhandled flag ID {flagId}" 
-            warn warning
+            warn "Unknown property ID, ignoring", flagId=flagId
+
 
 proc basicPropsFromWire*(wireProps: Stream, flags: uint16): AMQPBasicProperties =
     ## Converts the wire versions of a basic-properties table to a Nim struct
     ##
-    var i = 1;
-    while i <= 15:
+    # Bit 15 is the first property (4.2.6.1)
+    var i = 15;
+    while i >= 0:
         let curFlag = uint16(1) shl i
         let flag = (flags and curFlag) == curFlag
-        echo fmt"bit: {i} state: {flag}"
         if flag:
             populateProps(result, wireProps, i)
-        i.inc
+        i.dec
+
 
 proc toWire*(this: AMQPBasicProperties): (string, uint16) =
     ## Converts basic properties to a format suitable for the wire
@@ -96,7 +125,7 @@ proc toWire*(this: AMQPBasicProperties): (string, uint16) =
     # The rest of this stuff counts on flags to be zeroed, since this is a bitfield
     var flags: uint16 = 0
 
-    # These are orderd according to the XML-derived spec, see 1.8.1 (Class/Method Spec)
+    # These are ordered according to the XML-derived spec, see 1.8.1 (Class/Method Spec)
     stream.writeShortStr(this.contentType, "contentType", flags)
     stream.writeShortStr(this.contentEncoding, "contentEncoding", flags)
 

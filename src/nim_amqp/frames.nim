@@ -106,16 +106,17 @@ proc handleFrame*(chan: AMQPChannel, blocking = true) =
     initialData.readNumericEndian(frame.channel)
     initialData.readNumericEndian(frame.payloadSize)
 
-    # We've already fetched 8 bytes above (7+1), so we skip adding an extra byte of fetch here for 0xCE
-    let data = conn.sock.recv(int(frame.payloadSize), conn.readTimeout)
-    
-    # Ensure the frame-end octet matches the spec
-    if byte(data[frame.payloadSize-1]) != 0xCE:
-        raise newException(AMQPFrameError, "Corrupt frame, missing 0xCE ending marker")
+    if frame.payloadSize != 0:
+        # We've already fetched 8 bytes above (7+1), so we skip adding an extra byte of fetch here for 0xCE
+        let data = conn.sock.recv(int(frame.payloadSize), conn.readTimeout)
 
-    frame.payloadStream.write(initialData.readUint8)
-    frame.payloadStream.write(data[0..(frame.payloadSize-1)])   # We don't write the 0xCE to the stream
-    frame.payloadStream.setPosition(0)
+        # Ensure the frame-end octet matches the spec
+        if byte(data[frame.payloadSize-1]) != 0xCE:
+            raise newException(AMQPFrameError, "Corrupt frame, missing 0xCE ending marker")
+
+        frame.payloadStream.write(initialData.readUint8)
+        frame.payloadStream.write(data[0..(frame.payloadSize-1)])   # We don't write the 0xCE to the stream
+        frame.payloadStream.setPosition(0)
 
     case frame.frameType:
         # METHOD
@@ -127,8 +128,8 @@ proc handleFrame*(chan: AMQPChannel, blocking = true) =
         # CONTENT BODY
         of 3:
             chan.handleContentBody()
-        # HEARTBEAT
-        of 4:
+        # HEARTBEAT (The grammar says 8 but the frame-type docs say 4...)
+        of 4, 8:
             chan.handleHeartbeat()
         else:
             raise newException(AMQPFrameError, fmt"Got unexpected frame type '{frame.frameType}'")

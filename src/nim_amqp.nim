@@ -164,6 +164,7 @@ proc startBlockingConsumer*(chan: AMQPChannel) =
         chan.handleFrame
 
     unsetControlCHook()
+    chan.connectionClose()
 
 
 proc startAsyncConsumer*(chan: AMQPChannel) =

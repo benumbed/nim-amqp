@@ -103,6 +103,8 @@ proc toStrSeq(this: FieldTable): seq[string] =
         result.insert(fmt("{key} = {value}"))
 
 proc `$`*(this: FieldTable): string =
+    if isnil this:
+        return ""
     result = this.toStrSeq.join("\p")
 
 # proc len*(this: FieldTable): int = 
