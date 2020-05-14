@@ -65,7 +65,19 @@ proc writeUint[T](stream: StringStream, val: T, propName: string, flags: var uin
         stream.write(swapEndianIfNeeded(val))
         flags = flags or (uint16(1) shl PROPERTY_ORDERING[propName])
 
-proc basicPropsFromWire*(wireProps: string, flags: uint16): AMQPBasicProperties =
+proc populateProps(props: var AMQPBasicProperties, stream: Stream, flagId: int) =
+    ## Sets a property in the provided data-structure
+    case flagId:
+        # content_type
+        of 15:
+            let ctSize = swapEndian(stream.readUint32)
+            let ctStr = stream.readStr(int(ctSize))
+            props.contentType = ctStr
+        else:
+            let warning = fmt"Unhandled flag ID {flagId}" 
+            warn warning
+
+proc basicPropsFromWire*(wireProps: Stream, flags: uint16): AMQPBasicProperties =
     ## Converts the wire versions of a basic-properties table to a Nim struct
     ##
     var i = 1;
@@ -73,6 +85,8 @@ proc basicPropsFromWire*(wireProps: string, flags: uint16): AMQPBasicProperties 
         let curFlag = uint16(1) shl i
         let flag = (flags and curFlag) == curFlag
         echo fmt"bit: {i} state: {flag}"
+        if flag:
+            populateProps(result, wireProps, i)
         i.inc
 
 proc toWire*(this: AMQPBasicProperties): (string, uint16) =
@@ -167,7 +181,7 @@ proc handleContentHeader*(chan: AMQPChannel) =
     # TODO: Parse the flags
     let propFlags = swapEndian(stream.readUint16())
 
-    discard basicPropsFromWire("", propFlags)
+    discard basicPropsFromWire(stream, propFlags)
 
     let header = AMQPContentHeader(classId:classId, weight:weight, bodySize:bodySize, propertyFlags:propFlags,
                                     propertyList:AMQPBasicProperties())
