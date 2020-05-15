@@ -120,8 +120,10 @@ type
         flow*: bool
         curFrame*: AMQPFrame
         curContentHeader*: AMQPContentHeader
-        curContentBody*: string
+        curContentBody*: Stream
+        curContentBodyLen*: uint64  # Needed because the body's most likely a stream
         frames*: AMQPFrameHandling
+        messageCallback*: ConsumerMsgCallback
 
     AMQPBasicProperties* = object
         contentType*: string         # MIME type
@@ -147,7 +149,7 @@ type
         propertyFlags*: uint16
         propertyList*: AMQPBasicProperties
 
-    ConsumerMsgCallback* = proc(chan: AMQPChannel, body: Stream)
+    ConsumerMsgCallback* = proc(chan: AMQPChannel, header: AMQPContentHeader, body: Stream)
 
 
 type DispatchMethod* = proc(chan: AMQPChannel)

@@ -7,6 +7,7 @@ import chronicles
 import net
 import asyncnet, asyncdispatch
 import strformat
+import streams
 import system
 import tables
 
@@ -145,6 +146,10 @@ proc publish*(chan: AMQPChannel) =
     ## Publish a message to the server
     ##
 
+proc registerMessageHandler*(chan: AMQPChannel, callback: ConsumerMsgCallback) =
+    ## Registers a handler that is called when the server sends a message to a consumer
+    ##
+    chan.messageCallback = callback
 
 proc startBlockingConsumer*(chan: AMQPChannel) =
     ## Starts a consumer process
@@ -164,7 +169,7 @@ proc startBlockingConsumer*(chan: AMQPChannel) =
         chan.handleFrame
 
     unsetControlCHook()
-    chan.connectionClose()
+    chan.disconnect()
 
 
 proc startAsyncConsumer*(chan: AMQPChannel) =
@@ -177,5 +182,13 @@ when isMainModule:
     chan.createExchange("nim_amqp_test", "direct")
     chan.createAndBindQueue("nim_amqp_test_queue", "nim_amqp_test", "content-test")
     chan.basicConsume("nim_amqp_test_queue", "content-test", false, false, false, false)
+    proc msgHandler(chan: AMQPChannel, header: AMQPContentHeader, body: Stream) =
+        ## Handle messages
+        echo "Got a message!"
+        echo "content-type: ", header.propertyList.contentType
+        echo "body:\n", body.readAll()
+        
+
+    chan.registerMessageHandler(msgHandler)
     chan.startBlockingConsumer
     quit(0)

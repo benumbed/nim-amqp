@@ -6,6 +6,7 @@
 import chronicles
 import streams
 import strformat
+import strutils
 import tables
 
 import ./endian
@@ -74,9 +75,8 @@ proc populateProps(props: var AMQPBasicProperties, stream: Stream, flagId: int) 
         of 14:
             props.contentEncoding = stream.readStr(int(stream.readUint8))
         of 13:
-            let headerSize = swapEndian(stream.readUint32)
             props.headers = FieldTable()
-            if headerSize != 0:
+            if swapEndian(stream.readUint32) != 0:
                 props.headers = stream.extractFieldTable
         of 12:
             props.deliveryMode = stream.readUint8
@@ -104,6 +104,16 @@ proc populateProps(props: var AMQPBasicProperties, stream: Stream, flagId: int) 
         else:
             warn "Unknown property ID, ignoring", flagId=flagId
 
+# proc `$`*(this: AMQPBasicProperties) =
+#     ## String representation of AMQPBasicProperties
+#     ##
+#     var i = 15;
+#     while i >= 0:
+#         let curFlag = uint16(1) shl i
+#         let flag = (flags and curFlag) == curFlag
+#         if flag:
+#             populateProps(result, wireProps, i)
+#         i.dec
 
 proc basicPropsFromWire*(wireProps: Stream, flags: uint16): AMQPBasicProperties =
     ## Converts the wire versions of a basic-properties table to a Nim struct
@@ -202,24 +212,32 @@ proc sendContentBody*(chan: AMQPChannel, body: string) =
 proc handleContentHeader*(chan: AMQPChannel) =
     ## Handles an incoming content header
     ## 
+    # A new content header means whatever body data we have stored is now invalidated
+    chan.curContentBody = newStringStream()
     let stream = chan.curFrame.payloadStream
 
     let classId = swapEndian(stream.readUint16())
     let weight = swapEndian(stream.readUint16())
     let bodySize = swapEndian(stream.readUint64())
-    # TODO: Parse the flags
     let propFlags = swapEndian(stream.readUint16())
 
-    discard basicPropsFromWire(stream, propFlags)
-
-    let header = AMQPContentHeader(classId:classId, weight:weight, bodySize:bodySize, propertyFlags:propFlags,
-                                    propertyList:AMQPBasicProperties())
+    chan.curContentHeader = AMQPContentHeader(classId:classId, weight:weight, bodySize:bodySize, 
+                                propertyFlags:propFlags, propertyList:basicPropsFromWire(stream, propFlags))
 
     debug "Content Header", classId=classId, weight=weight, bodySize=bodySize, propFlags=propFlags
 
 
 proc handleContentBody*(chan: AMQPChannel) =
-    ## Handles incoming content bodies
+    ## Handles incoming content bodies.  Note that AMQP allows for chunking, so this provides for extending the body
     ##
-    debug "Content body handler"
-    echo chan.curFrame.payloadStream.readAll()
+    let raw = chan.curFrame.payloadStream.readAll().strip()
+    if raw[raw.len-1] != char(0xCE):
+        raise newException(AMQPContentError, "Encountered corrupted content body frame, 0xCE terminator not found")
+    
+    let chunk = raw[0..raw.len-2]
+    chan.curContentBodyLen.inc(chunk.len)
+    chan.curContentBody.write(chunk)
+
+    if chan.curContentBodyLen == chan.curContentHeader.bodySize:
+        chan.curContentBody.setPosition(0)
+        chan.messageCallback(chan, chan.curContentHeader, chan.curContentBody)
