@@ -14,7 +14,7 @@ import ./errors
 const FRAME_METHOD* = uint8(1)
 const FRAME_CONTENT_HEADER* = uint8(2)
 const FRAME_CONTENT_BODY* = uint8(3)
-const FRAME_HEARTBEAT* = uint8(4)
+const FRAME_HEARTBEAT* = uint8(8)
 
 
 type AMQPFramePayloadType* = enum
@@ -32,7 +32,7 @@ type AMQPFrame* = ref object
 
 type
     FrameHandlerProc* = proc(chan: AMQPChannel, blocking = true)
-    FrameSenderProc* = proc (conn: AMQPChannel): StrWithError
+    FrameSenderProc* = proc (conn: AMQPChannel, frame: AMQPFrame = nil): StrWithError
 
     FieldTableValueType* = enum
         ftBadField = 0
@@ -100,6 +100,10 @@ type
 
     AMQPConnectionObj = ref object of RootObj
         readTimeout*: int
+        connectTimeout*: int
+        maxReconnectAttempts*: int
+        host*: string
+        port*: Port
         username*: string
         password*: string
         ready*: bool

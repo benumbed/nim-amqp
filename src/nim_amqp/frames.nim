@@ -28,31 +28,29 @@ proc handleMethod(chan: AMQPChannel)
 proc handleHeartbeat(chan: AMQPChannel)
 
 
-proc waitForFrame*(chan: AMQPChannel, timeout = -1) = 
-    ## Blocks while waiting for data on the wire.  If `timeout` is -1, this method will block indefinitely.
-    ##
-    var sockFd = @[chan.conn.sock.getFd]
-    discard selectRead(sockFd, timeout)
-
-
-proc sendFrame*(chan: AMQPChannel): StrWithError =
+proc sendFrame*(chan: AMQPChannel, frame: AMQPFrame = nil): StrWithError =
     ## Sends a pre-formatted AMQP frame to the server
     ##
     let conn = chan.conn
-    let frame = chan.curFrame
+    let frame = if isnil frame: chan.curFrame else: frame
     let stream = newStringStream()
 
     stream.write(frame.frameType)
     stream.write(frame.channel)
 
+    # TODO: Should only read from the stream in chunks that match the size we negotiated with the server. Extra chunks
+    #       require more sends (trigger another sendFrame if the stream isn't at end, or we haven't written the entire
+    #       payload string)
     case frame.payloadType:
     of ptStream:
         let payloadStr = frame.payloadStream.readAll()
-        stream.write(swapEndian(uint32(len(payloadStr))))
-        stream.write(payloadStr)
+        stream.write(swapEndian(uint32(payloadStr.len)))
+        if payloadStr.len > 0:
+            stream.write(payloadStr)
     of ptString:
         stream.write(frame.payloadSize)
-        stream.write(frame.payloadString)
+        if frame.payloadSize > 0:
+            stream.write(frame.payloadString)
     
     # Note to future self: write treats 0xCE as 32b, that's why we need the cast
     stream.write(uint8(0xCE))
@@ -91,6 +89,9 @@ proc handleFrame*(chan: AMQPChannel, blocking = true) =
             raise
         return
 
+    if initialData.atEnd and initialData.getPosition() == 0:
+        raise newException(AMQPSocketClosedError, "Server unexpectedly closed the connection")
+
     # If this is the first 'frame' we've handled, we have to make sure the server's not attempting to do a 
     # version renegotiation
     if chan.active and not chan.conn.ready and initialData.peekStr(4) == "AMQP":
@@ -119,27 +120,27 @@ proc handleFrame*(chan: AMQPChannel, blocking = true) =
         frame.payloadStream.setPosition(0)
 
     case frame.frameType:
-        # METHOD
-        of 1:
+        of FRAME_METHOD:
             chan.handleMethod()
-        # CONTENT HEADER
-        of 2:
+        of FRAME_CONTENT_HEADER:
             chan.handleContentHeader()
-        # CONTENT BODY
-        of 3:
+        of FRAME_CONTENT_BODY:
             chan.handleContentBody()
-        # HEARTBEAT (The grammar says 8 but the frame-type docs say 4...)
-        of 4, 8:
+        of FRAME_HEARTBEAT:
             chan.handleHeartbeat()
         else:
             raise newException(AMQPFrameError, fmt"Got unexpected frame type '{frame.frameType}'")
 
 
 proc handleHeartbeat(chan: AMQPChannel) = 
-    ## Handles a heartbeat from the server
+    ## Handles a heartbeat from the server (just sends a heartbeat frame back, no error checking ATM)
     ##
-    warn "Got a heartbeat but there's no handler yet"
-    return
+    chan.curFrame = AMQPFrame(payloadType: ptString, frameType: FRAME_HEARTBEAT, channel: 0, payloadString: "")
+    let res = chan.sendFrame()
+    if res.error:
+        error "Problem sending AMQP heartbeat", error=res.result
+    else:
+        debug "Sent AMQP heartbeat"
 
 
 proc handleMethod(chan: AMQPChannel) = 

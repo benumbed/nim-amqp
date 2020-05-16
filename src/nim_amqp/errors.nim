@@ -17,6 +17,7 @@ template newAMQPException*(exceptn: typedesc, message: string, classId: uint16 =
     (ref exceptn)(class: classId, meth: methId, code: statusCode, msg: message)
 
 
-type AMQPNotImplementedError* = object of AMQPError
-type AMQPVersionError* = object of AMQPError
-type AMQPSocketClosedError* = object of AMQPError
+type
+    AMQPNotImplementedError* = object of AMQPError
+    AMQPVersionError* = object of AMQPError
+    AMQPSocketClosedError* = object of AMQPError

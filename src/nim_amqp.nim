@@ -13,7 +13,6 @@ import tables
 
 import nim_amqp/errors
 import nim_amqp/frames
-import nim_amqp/field_table
 import nim_amqp/protocol
 import nim_amqp/types
 import nim_amqp/classes/basic
@@ -36,10 +35,13 @@ proc connect*(host, username, password: string, vhost="/", port = 5672, tuning =
     ## `port`: Port number on the server to connect to, defaults to 5672
     ## `tuning`: AMQP tuning parameters, defaults to blank structure
     ##
-    result = newAMQPConnection(host, username, password, port)
-    result.tuning = tuning
+    result = newAMQPConnection(host, username, password, port, tuning=tuning)
     result.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOpen(vhost)
 
+proc reconnect*(conn: AMQPConnection) =
+    ## Takes an existing connection and tries to reconnect to the server
+    ## 
+    conn.sock.connect(conn.host, conn.port, timeout=conn.connectTimeout)
 
 proc assignAvailableChannel(conn: AMQPConnection): AMQPChannel =
     ## Loops through the channelTracking table and tries to find an unused channel number
@@ -151,7 +153,7 @@ proc registerMessageHandler*(chan: AMQPChannel, callback: ConsumerMsgCallback) =
     ##
     chan.messageCallback = callback
 
-proc startBlockingConsumer*(chan: AMQPChannel) =
+proc startBlockingConsumer*(chan: AMQPChannel, reconnect=true) =
     ## Starts a consumer process
     ## NOTE: This function enters a blocking loop, and will not return until the connection is terminated!
     ## (TODO: Define a way to register callbacks for recieved messages)
@@ -164,9 +166,21 @@ proc startBlockingConsumer*(chan: AMQPChannel) =
 
     setControlCHook(killLoop)
 
+    var reconAttempts = 0
+
     while consumerLoopRunning and chan.active and chan.conn.ready:
-        # TODO: reconnect if needed
-        chan.handleFrame
+        try:
+            chan.handleFrame
+        except AMQPError as e:
+            if not chan.active or not chan.conn.ready:
+                # TODO: Make reconnects actually work
+                if reconAttempts <= chan.conn.maxReconnectAttempts:
+                    reconAttempts.inc
+                    error "Recieved an exception in blocking loop, attempting to reconnect", exception=e.msg
+                    chan.conn.reconnect
+                    reconAttempts = 0
+                else:
+                    raise newException(AMQPError, "Surpassed the allowed number of reconnects")
 
     unsetControlCHook()
     chan.disconnect()
