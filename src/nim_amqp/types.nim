@@ -100,9 +100,6 @@ type
 
     AMQPConnectionObj = ref object of RootObj
         readTimeout*: int
-        connectTimeout*: int
-        host*: string
-        port*: Port
         username*: string
         password*: string
         ready*: bool
