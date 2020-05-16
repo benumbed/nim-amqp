@@ -29,15 +29,19 @@ proc newAMQPChannel*(conn: AMQPConnection, number: uint16, reciever: FrameHandle
 
 
 proc newAMQPConnection*(host, username, password: string, port = 5672, connectTimeout = 500, readTimeout = 500, 
-                       amqpVersion = "0.9.1"): AMQPConnection =
+                       amqpVersion = "0.9.1", tuning=AMQPTuning()): AMQPConnection =
     new(result)
 
     result.sock = newSocket(buffered=true)
     result.sock.connect(host, Port(port), timeout=connectTimeout)
+    result.connectTimeout = connectTimeout
     result.readTimeout = readTimeout
     result.meta.version = amqpVersion
+    result.host = host
+    result.port = Port(port)
     result.username = username
     result.password = password
+    result.tuning = tuning
 
     let sent = result.sock.trySend(wireAMQPVersion(result.meta.version))
     if not sent:
