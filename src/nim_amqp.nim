@@ -1,11 +1,10 @@
 ## 
-## Implementation of the AMQP protocol in (hopefully) pure Nim
+## Implementation of the AMQP protocol in pure Nim
 ##
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
 import chronicles
 import net
-import asyncnet, asyncdispatch
 import strformat
 import streams
 import system
@@ -38,10 +37,12 @@ proc connect*(host, username, password: string, vhost="/", port = 5672, tuning =
     result = newAMQPConnection(host, username, password, port, tuning=tuning)
     result.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOpen(vhost)
 
+
 proc reconnect*(conn: AMQPConnection) =
     ## Takes an existing connection and tries to reconnect to the server
     ## 
     conn.sock.connect(conn.host, conn.port, timeout=conn.connectTimeout)
+
 
 proc assignAvailableChannel(conn: AMQPConnection): AMQPChannel =
     ## Loops through the channelTracking table and tries to find an unused channel number
@@ -72,7 +73,7 @@ proc createChannel*(conn: AMQPConnection): AMQPChannel =
 
 
 proc removeChannel*(chan: AMQPChannel) =
-    ## Removes the channel, and closes it on the server.
+    ## Closes the active channel
     ##
     if int(chan.number) notin channelTracking:
         raise newException(AMQPError, fmt"Provided channel '{chan.number}' isn't in the global channel tracking table")
@@ -141,24 +142,55 @@ proc createAndBindQueue*(chan: AMQPChannel, queueName, exchangeName, routingKey:
 proc removeQueue*(chan: AMQPChannel, queueName: string, ifUnused = false, ifEmpty = false, noWait = false) = 
     ## Removes a queue from the server.  Removing a queue will also automatically unbind the queue from any exchanges
     ##
+    ## `queueName`: Name of the queue to remove
+    ## `ifUnused`: Only remove the queue if it is not in use
+    ## `ifEmpty`: Only remove the queue if it is empty
+    ## `noWait`: Tell server to not send a response
+    ## 
     chan.queueDelete(queueName, ifUnused, ifEmpty, noWait)
 
 
-proc publish*(chan: AMQPChannel) =
+proc publish*(chan: AMQPChannel, exchangeName: string, routingKey: string, mandatory: bool, immediate: bool) =
     ## Publish a message to the server
+    ## 
+    ## `exchangeName`: Exchange to publish message to
+    ## `routingKey`: The routing key to provide to the exchange 
+    ## `mandatory`: If the message cannot be routed, it will be returned via basic.return
+    ## `immediate`: If true, and the server cannot route the message to a consumer immedaitely the server will return 
+    ##              the message (via basic.return)
     ##
+    chan.basicPublish(exchangeName, routingKey, mandatory, immediate)
+
 
 proc registerMessageHandler*(chan: AMQPChannel, callback: ConsumerMsgCallback) =
-    ## Registers a handler that is called when the server sends a message to a consumer
-    ##
+    ## Registers a handler (scoped to current channel) that is called when the server sends a message to a consumer
+    ## 
+    ## `callback`: The procedure to call when the server sends a message to a consumer
+    ## 
     chan.messageCallback = callback
+
+
+proc registerReturnedMessageHandler*(chan: AMQPChannel, callback: MessageReturnCallback) =
+    ## Registers a handler for returned messages on the current channel.  This is used when the server returns messages
+    ## from a `publish` with either `mandatory` or `immediate` set.
+    ##
+    ## `callback`: The procedure to call when the server returns a message
+    ## 
+    chan.returnCallback = callback
+
 
 proc startBlockingConsumer*(chan: AMQPChannel, reconnect=true) =
     ## Starts a consumer process
-    ## NOTE: This function enters a blocking loop, and will not return until the connection is terminated!
-    ## (TODO: Define a way to register callbacks for recieved messages)
+    ## **NOTE**: This function enters a blocking loop, and will not return until the connection is terminated or CTRL+C
+    ##           is sent to the process.
     ##
-    info "Starting a blocking consumer"
+    ## `reconnect`: Will try to automatically reconnect on error.  The number of reconnect attempts is controlled from
+    ##              the `maxReconnectAttempts` variable on the active connection.
+    if isnil chan.messageCallback:
+        raise newException(AMQPError, "The internal consumer loop requires you to set the message handler callback")
+
+    info "Starting the nim-amqp blocking consumer"
+    
     consumerLoopRunning = true
     proc killLoop() {.noconv.} =
       info "Keyboard interrupt received, exiting loop"

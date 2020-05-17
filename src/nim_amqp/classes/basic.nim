@@ -19,7 +19,7 @@ type AMQPBasicError* = object of AMQPError
 proc basicQosOk*(chan: AMQPChannel)
 proc basicConsumeOk*(chan: AMQPChannel)
 proc basicCancelOk*(chan: AMQPChannel)
-# proc basicReturn*(chan: AMQPChannel)
+proc basicReturn*(chan: AMQPChannel)
 proc basicDeliver*(chan: AMQPChannel)
 # proc basicGetOk*(chan: AMQPChannel)
 # proc basicGetEmpty*(chan: AMQPChannel)
@@ -29,7 +29,7 @@ var basicMethodMap* = MethodMap()
 basicMethodMap[11] = basicQosOk
 basicMethodMap[21] = basicConsumeOk
 basicMethodMap[31] = basicCancelOk
-# basicMethodMap[50] = basicReturn
+basicMethodMap[50] = basicReturn
 basicMethodMap[60] = basicDeliver
 # basicMethodMap[71] = basicGetOk
 # basicMethodMap[72] = basicGetEmpty
@@ -128,7 +128,7 @@ proc basicConsumeOk*(chan: AMQPChannel) =
 
 
 proc basicCancel*(chan: AMQPChannel, consumerTag: string, noWait: bool) =
-    ## Unbind a queue from an exchange, provided `routingKey` matches
+    ## Cancels a consumer
     ## 
     if consumerTag.len > 255:
         raise newException(AMQPBasicError, "consumer-tag must be 255 characters or less")
@@ -150,7 +150,7 @@ proc basicCancel*(chan: AMQPChannel, consumerTag: string, noWait: bool) =
 
 
 proc basicCancelOk*(chan: AMQPChannel) =
-    ## Server responding to a successful queue.unbind request
+    ## Server responding to a successful basic.cancel request
     ##
     let stream = chan.curFrame.payloadStream
 
@@ -191,9 +191,22 @@ proc basicPublish*(chan: AMQPChannel, exchangeName: string, routingKey: string, 
     chan.sendFrame(stream)
 
 
-proc basicReturn*(chan: AMQPChannel, replyCode: uint16, replyText: string, exchangeName: string, routingKey: string) =
-    ## 'Returns' a message that could not be processed to the server
-    ## 
+proc basicReturn*(chan: AMQPChannel) =
+    ## 'Returns' a message that could not be processed to the server.  If `chan.returnCallback` is not set, only a 
+    ## warning will be logged.
+    ##
+    let stream = chan.curFrame.payloadStream
+
+    let replyCode = swapEndian(stream.readUint16)
+    let replyText = stream.readStr(int(stream.readUint8))
+    let exchange = stream.readStr(int(stream.readUint8))
+    let routingKey = stream.readStr(int(stream.readUint8))
+
+    warn "Recieved returned message", replyCode=replyCode, replyText=replyText, exchange=exchange, routingKey=routingKey
+
+    if not isnil chan.returnCallback:
+        chan.returnCallback(chan, replyCode=replyCode, replyText=replyText, exchangeName=exchange, 
+                            routingKey=routingKey)
     
 proc basicDeliver(chan: AMQPChannel) = 
     ## Handles a basic.deliver from the server

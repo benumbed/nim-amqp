@@ -128,6 +128,7 @@ type
         curContentBodyLen*: uint64  # Needed because the body's most likely a stream
         frames*: AMQPFrameHandling
         messageCallback*: ConsumerMsgCallback
+        returnCallback*: MessageReturnCallback
 
     AMQPBasicProperties* = object
         contentType*: string         # MIME type
@@ -154,6 +155,8 @@ type
         propertyList*: AMQPBasicProperties
 
     ConsumerMsgCallback* = proc(chan: AMQPChannel, header: AMQPContentHeader, body: Stream)
+    MessageReturnCallback* = proc(chan: AMQPChannel, replyCode: uint16, replyText: string, exchangeName: string, 
+                                routingKey: string)
 
 
 type DispatchMethod* = proc(chan: AMQPChannel)
