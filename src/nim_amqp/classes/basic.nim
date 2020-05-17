@@ -11,6 +11,7 @@ import ../endian
 import ../errors
 import ../field_table
 import ../types
+import ../utils
 
 const CLASS_ID: uint16 = 60
 
@@ -36,26 +37,6 @@ basicMethodMap[60] = basicDeliver
 # basicMethodMap[111] = basicRecoverOk
 
 
-proc sendFrame(chan: AMQPChannel, payloadStrm: Stream, callback: FrameHandlerProc = nil) = 
-    payloadStrm.setPosition(0)
-    let payload = payloadStrm.readAll()
-
-    chan.curFrame = AMQPFrame(
-        frameType: 1,
-        channel: swapEndian(chan.number),
-        payloadType: ptString,
-        payloadSize: swapEndian(uint32(payload.len)),
-        payloadString: payload
-    )
-
-    let sendRes = chan.frames.sender(chan)
-    if sendRes.error:
-        raise newException(AMQPBasicError, sendRes.result)
-
-    if callback != nil:
-        callback(chan)
-
-
 proc basicQos*(chan: AMQPChannel, prefetchCount: uint16, global: bool) =
     ## Sets QoS parameters on the server.
     ## 
@@ -70,7 +51,8 @@ proc basicQos*(chan: AMQPChannel, prefetchCount: uint16, global: bool) =
     stream.write(uint8(global))
 
     debug "Setting QoS params", prefetchSize=0, prefetchCount=prefetchCount, global=global
-    chan.sendFrame(stream, callback=chan.frames.handler)
+
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc basicQosOk*(chan: AMQPChannel) =
@@ -114,7 +96,8 @@ proc basicConsume*(chan: AMQPChannel, queueName: string, consumerTag: string, no
 
     debug "Starting a consumer", queue=queueName, consumerTag=consumerTag, noLocal=noLocal, noAck=noAck, 
         exclusive=exclusive, noWait=noWait
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc basicConsumeOk*(chan: AMQPChannel) =
@@ -146,7 +129,8 @@ proc basicCancel*(chan: AMQPChannel, consumerTag: string, noWait: bool) =
     stream.write(uint8(noWait))
 
     debug "Canceling consumer", consumerTag=consumerTag
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc basicCancelOk*(chan: AMQPChannel) =
@@ -188,7 +172,9 @@ proc basicPublish*(chan: AMQPChannel, exchangeName: string, routingKey: string, 
     stream.write(uint8(bitFields))
 
     debug "Sending basicPublish", exchange=exchangeName, mandatory=mandatory, immediate=immediate
-    chan.sendFrame(stream)
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream))
+    
 
 
 proc basicReturn*(chan: AMQPChannel) =

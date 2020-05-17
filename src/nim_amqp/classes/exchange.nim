@@ -11,6 +11,7 @@ import ../endian
 import ../errors
 import ../field_table
 import ../types
+import ../utils
 
 const CLASS_ID: uint16 = 40
 
@@ -22,26 +23,6 @@ proc exchangeDeleteOk*(chan: AMQPChannel)
 var exchangeMethodMap* = MethodMap()
 exchangeMethodMap[11] = exchangeDeclareOk
 exchangeMethodMap[21] = exchangeDeleteOk
-
-
-proc sendFrame(chan: AMQPChannel, payloadStrm: Stream, callback: FrameHandlerProc = nil) = 
-    payloadStrm.setPosition(0)
-    let payload = payloadStrm.readAll()
-
-    chan.curFrame = AMQPFrame(
-        frameType: 1,
-        channel: swapEndian(chan.number),
-        payloadType: ptString,
-        payloadSize: swapEndian(uint32(payload.len)),
-        payloadString: payload
-    )
-
-    let sendRes = chan.frames.sender(chan)
-    if sendRes.error:
-        raise newException(AMQPExchangeError, sendRes.result)
-
-    if callback != nil:
-        callback(chan)
 
 
 proc exchangeDeclare*(chan: AMQPChannel, exchangeName: string, exchangeType: string, passive: bool, durable: bool, 
@@ -79,7 +60,7 @@ proc exchangeDeclare*(chan: AMQPChannel, exchangeName: string, exchangeType: str
     stream.write(args)
 
     debug "Creating exchange", exchange=exchangeName
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc exchangeDeclareOk*(chan: AMQPChannel) =
@@ -109,7 +90,7 @@ proc exchangeDelete*(chan: AMQPChannel, exchangeName: string, ifUnused: bool, no
     stream.write(uint8(bitFields))
 
     debug "Deleting exchange", exchange=exchangeName
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
     
 
 proc exchangeDeleteOk*(chan: AMQPChannel) =

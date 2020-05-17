@@ -14,6 +14,7 @@ import ./errors
 const FRAME_METHOD* = uint8(1)
 const FRAME_CONTENT_HEADER* = uint8(2)
 const FRAME_CONTENT_BODY* = uint8(3)
+# The spec body says the frame type is 4, but the grammar says 8, RabbitMQ followed the grammar, so do we
 const FRAME_HEARTBEAT* = uint8(8)
 
 
@@ -32,7 +33,7 @@ type AMQPFrame* = ref object
 
 type
     FrameHandlerProc* = proc(chan: AMQPChannel, blocking = true)
-    FrameSenderProc* = proc (conn: AMQPChannel, frame: AMQPFrame = nil): StrWithError
+    FrameSenderProc* = proc (conn: AMQPChannel, frame: AMQPFrame = nil, expectResponse = false): StrWithError
 
     FieldTableValueType* = enum
         ftBadField = 0

@@ -1,5 +1,6 @@
 ## 
 ## Provides structures and methods for working with AMQP content
+## See spec section 2.3.5.2 for info on frame format
 ##
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
@@ -13,17 +14,10 @@ import ./endian
 import ./errors
 import ./field_table
 import ./types
+import ./utils
 
 type AMQPContentError* = object of AMQPError
 type AMQPPropertyError* = object of AMQPError
-
-# See spec section 2.3.5.2 for info on frame format
-
-# Send header with FRAME_CONTENT_HEADER type
-# Send content frames with FRAME_CONTENT_BODY
-#   Content frame is literally an AMQP frame with a binary body and the normal 0xCE terminator
-#   Content can be split up into multiple frames to accomodate frame-size restrictions
-# Remember that headers and content bodies are all contained in AMQP frames
 
 
 # This is used to set the propertyFlags bitfield properly
@@ -181,32 +175,15 @@ proc toWire*(this: AMQPContentHeader): string =
     result = stream.readAll
 
 
-proc sendFrame(chan: AMQPChannel, frameType: uint8, payload: string, callback: FrameHandlerProc = nil) = 
-    chan.curFrame = AMQPFrame(
-        frameType: frameType,
-        channel: swapEndian(chan.number),
-        payloadType: ptString,
-        payloadSize: swapEndian(uint32(payload.len)),
-        payloadString: payload
-    )
-
-    let sendRes = chan.frames.sender(chan)
-    if sendRes.error:
-        raise newException(AMQPContentError, sendRes.result)
-
-    if callback != nil:
-        callback(chan)
-
-
 proc sendContentHeader*(chan: AMQPChannel, header: AMQPContentHeader) =
     ## Sends the content header to the server
-    ## 
-    chan.sendFrame(FRAME_CONTENT_HEADER, header.toWire)
+    ##
+    discard chan.frames.sender(chan, chan.constructContentFrame(FRAME_CONTENT_HEADER, header.toWire))
 
 proc sendContentBody*(chan: AMQPChannel, body: string) =
     ## Sends the content body described by the content header
-    ## 
-    chan.sendFrame(FRAME_CONTENT_BODY, body)
+    ##
+    discard chan.frames.sender(chan, chan.constructContentFrame(FRAME_CONTENT_BODY, body))
 
 
 proc handleContentHeader*(chan: AMQPChannel) =

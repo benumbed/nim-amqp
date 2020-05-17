@@ -7,8 +7,10 @@ import net
 import unittest
 
 import nim_amqp/protocol
+import nim_amqp/errors
 
 test "correctly reads AMQP version from server on error":
+    # discard newAMQPConnection("localhost", "nouser", "nopass", amqpVersion="0.9.0")
     expect AMQPVersionError:
         discard newAMQPConnection("localhost", "nouser", "nopass", amqpVersion="0.9.0")
 

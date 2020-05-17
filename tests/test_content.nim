@@ -7,7 +7,7 @@ import unittest
 
 import nim_amqp
 import nim_amqp/content
-import nim_amqp/field_table
+import nim_amqp/types
 import nim_amqp/classes/basic
 
 const exchName = "content-tests-exchange"
@@ -55,6 +55,5 @@ suite "Content library tests (pub/sub)":
         chan.sendContentHeader(header)
         chan.sendContentBody(content)
 
-# chan.removeQueue(queueName)
 chan.removeExchange(exchName)
 chan.disconnect()

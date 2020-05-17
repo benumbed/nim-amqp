@@ -6,7 +6,6 @@
 import chronicles
 import net
 import strformat
-import streams
 import system
 import tables
 
@@ -84,10 +83,11 @@ proc removeChannel*(chan: AMQPChannel) =
 
 proc disconnect*(chan: AMQPChannel) =
     ## Nicely disconnects from the server (sets 200 status on connection.close)
-    ## 
+    ##
+    let conn = chan.conn
     if chan.active:
         chan.removeChannel()
-    chan.connectionClose()
+    newAMQPChannel(conn, number=0, frames.handleFrame, frames.sendFrame).connectionClose()
 
 
 proc createExchange*(chan: AMQPChannel, exchangeName, exchangeType: string, passive = false, durable = true, 
@@ -186,6 +186,7 @@ proc startBlockingConsumer*(chan: AMQPChannel, reconnect=true) =
     ##
     ## `reconnect`: Will try to automatically reconnect on error.  The number of reconnect attempts is controlled from
     ##              the `maxReconnectAttempts` variable on the active connection.
+    ##
     if isnil chan.messageCallback:
         raise newException(AMQPError, "The internal consumer loop requires you to set the message handler callback")
 

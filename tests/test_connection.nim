@@ -7,7 +7,6 @@ import unittest
 
 import nim_amqp/frames
 import nim_amqp/protocol
-import nim_amqp/types
 import nim_amqp/classes/connection
 
 

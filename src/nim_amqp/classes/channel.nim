@@ -11,6 +11,7 @@ import tables
 import ../endian
 import ../errors
 import ../types
+import ../utils
 
 const CLASS_ID: uint16 = 20
 
@@ -30,27 +31,6 @@ channelMethodMap[40] = channelCloseIncoming
 channelMethodMap[41] = channelCloseOkIncoming
 
 
-proc sendFrame(chan: AMQPChannel, payload: Stream, callback: FrameHandlerProc = nil) = 
-    let pl = payload.readAll()
-
-    chan.curFrame = AMQPFrame(
-        frameType: 1,
-        channel: swapEndian(chan.number),
-        payloadType: ptString,
-        payloadSize: swapEndian(uint32(pl.len)),
-        payloadString: pl
-    )
-
-    let sendRes = chan.frames.sender(chan)
-    if sendRes.error:
-        raise newException(AMQPChannelError, sendRes.result)
-
-    if callback != nil:
-        callback(chan)
-
-
-
-
 proc channelOpen*(chan: AMQPChannel) =
     ## Requests for the server to open a new channel, `channelNum` (channel.open)
     let stream = newStringStream()
@@ -64,7 +44,7 @@ proc channelOpen*(chan: AMQPChannel) =
     stream.setPosition(0)
 
     debug "Opening channel", channel=chan.number
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc channelOpenOk(chan: AMQPChannel) =
@@ -89,7 +69,8 @@ proc channelFlow*(chan: AMQPChannel, flow: bool) =
     stream.setPosition(0)
 
     debug "Sending channel flow control request", channel=chan.number, flow=flow
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc channelFlowOk(chan: AMQPChannel) =
@@ -124,7 +105,8 @@ proc channelClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Norm
     stream.setPosition(0)
 
     debug "Closing channel", channel=chan.number
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc channelCloseIncoming(chan: AMQPChannel) = 
@@ -144,6 +126,7 @@ proc channelCloseIncoming(chan: AMQPChannel) =
     if code != 200:
         raise newAMQPException(AMQPChannelError, reason, class, meth, code)
 
+
 proc channelCloseOk*(chan: AMQPChannel) =
     ## Send a 'channel.close-ok' to the server
     ## 
@@ -156,7 +139,8 @@ proc channelCloseOk*(chan: AMQPChannel) =
 
     debug "Telling server it's ok to close channel", channel=chan.number
     chan.active = false
-    chan.sendFrame(stream)
+
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream))
 
 
 proc channelCloseOkIncoming(chan: AMQPChannel) = 

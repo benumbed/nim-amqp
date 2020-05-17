@@ -26,13 +26,14 @@ type AMQPFrameError* = object of AMQPError
 
 proc handleMethod(chan: AMQPChannel)
 proc handleHeartbeat(chan: AMQPChannel)
+proc handleFrame*(chan: AMQPChannel, blocking = true)
 
 
-proc sendFrame*(chan: AMQPChannel, frame: AMQPFrame = nil): StrWithError =
+proc sendFrame*(chan: AMQPChannel, frameAlt: AMQPFrame = nil, expectResponse = false): StrWithError =
     ## Sends a pre-formatted AMQP frame to the server
     ##
     let conn = chan.conn
-    let frame = if isnil frame: chan.curFrame else: frame
+    let frame = if isnil frameAlt: chan.curFrame else: frameAlt
     let stream = newStringStream()
 
     stream.write(frame.frameType)
@@ -60,8 +61,9 @@ proc sendFrame*(chan: AMQPChannel, frame: AMQPFrame = nil): StrWithError =
         conn.sock.send(stream.readAll())
     except OSError as e:
         return (fmt"Failed to send AMQP frame: {e.msg}", true)
-    finally:
-        stream.close()
+
+    if expectResponse:
+        chan.handleFrame
     
     return ("", false)
 
@@ -131,7 +133,8 @@ proc handleFrame*(chan: AMQPChannel, blocking = true) =
         else:
             raise newException(AMQPFrameError, fmt"Got unexpected frame type '{frame.frameType}'")
 
-
+# TODO: We should also be sending heartbeats based on interval, responding to server heartbeast is just the easiest
+# path to not getting kicked off the server ATM.
 proc handleHeartbeat(chan: AMQPChannel) = 
     ## Handles a heartbeat from the server (just sends a heartbeat frame back, no error checking ATM)
     ##

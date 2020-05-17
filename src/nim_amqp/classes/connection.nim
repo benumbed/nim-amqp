@@ -94,23 +94,6 @@ connectionMethodMap[50] = connectionCloseIncoming
 connectionMethodMap[51] = connectionCloseOkIncoming
 
 
-proc sendFrame(chan: AMQPChannel, payload: string, payloadSize: uint32, callback: FrameHandlerProc = nil) = 
-    chan.curFrame = AMQPFrame(
-        frameType: 1,
-        channel: swapEndian(uint16(0)),
-        payloadType: ptString,
-        payloadSize: swapEndian(payloadSize),
-        payloadString: payload
-    )
-
-    let sendRes = chan.frames.sender(chan)
-    if sendRes.error:
-        raise newException(AMQPConnectionError, sendRes.result)
-
-    if callback != nil:
-        callback(chan)
-
-
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::start
 # ----------------------------------------------------------------------------------------------------------------------
@@ -175,11 +158,11 @@ proc connectionStartOk*(chan: AMQPChannel, args: ConnectionStartOkArgs) =
     let argString = args.toWire().readAll()
 
     try:
-        sendFrame(chan, argString, uint32(len(argString)), chan.frames.handler)
+        discard chan.frames.sender(chan, chan.constructMethodFrame(argString), expectResponse = true)
     except TimeoutError:
         raise newException(AMQPConnectionError, """Sending 'connection.start-ok' timed-out, this could be caused by 
                            invalid credentials""".singleLine)
-    
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 # connection::secure
@@ -187,9 +170,9 @@ proc connectionStartOk*(chan: AMQPChannel, args: ConnectionStartOkArgs) =
 proc connectionSecure*(chan: AMQPChannel) =
     ## connection.secure implementation
     ##
-    let stream = chan.curFrame.payloadStream
-    let chalSize = swapEndian(stream.readUint32())
-    let chalString = stream.readStr(int(chalSize))
+    # let stream = chan.curFrame.payloadStream
+    # let chalSize = swapEndian(stream.readUint32())
+    # let chalString = stream.readStr(int(chalSize))
     # TODO: SASL/Alternative Auth Mechanisms?
     raise newException(AMQPNotImplementedError, "connection.secure is not implemented")
 
@@ -243,9 +226,7 @@ proc connectionTuneOk*(chan: AMQPChannel) =
     stream.write(swapEndian(chan.conn.tuning.heartbeat))
     stream.setPosition(0)
 
-    let payload = stream.readAll()
-
-    chan.sendFrame(payload, uint32(payload.len))
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream))
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -269,9 +250,7 @@ proc connectionOpen*(chan: AMQPChannel, vhost: string = "/") =
 
     stream.setPosition(0)
 
-    let payload = stream.readAll()
-
-    chan.sendFrame(payload, uint32(len(payload)), chan.frames.handler)
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -302,9 +281,7 @@ proc connectionClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="N
 
     stream.setPosition(0)
 
-    let payload = stream.readAll()
-
-    chan.sendFrame(payload, uint32(len(payload)), chan.frames.handler)
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc connectionCloseIncoming(chan: AMQPChannel) =
@@ -338,9 +315,7 @@ proc connectionCloseOk*(chan: AMQPChannel) =
     stream.write(swapEndian(uint16(51)))
     stream.setPosition(0)
 
-    let payload = stream.readAll()
-
-    chan.sendFrame(payload, uint32(len(payload)))
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream))
 
     chan.conn.ready = false
 

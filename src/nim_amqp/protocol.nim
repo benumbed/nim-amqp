@@ -11,7 +11,6 @@ import ./types
 import ./utils
 
 type AMQPProtocolError* = object of AMQPError
-type AMQPVersionError* = object of AMQPError
 
 proc newAMQPChannel*(conn: AMQPConnection, number: uint16, reciever: FrameHandlerProc, 
                     sender: FrameSenderProc, framePayloadType = ptStream): AMQPChannel =

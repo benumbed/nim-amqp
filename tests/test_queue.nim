@@ -7,7 +7,6 @@ import unittest
 
 import nim_amqp/frames
 import nim_amqp/protocol
-import nim_amqp/types
 import nim_amqp/classes/channel
 import nim_amqp/classes/connection
 import nim_amqp/classes/exchange
@@ -16,7 +15,8 @@ import nim_amqp/classes/queue
 const exchName = "queue-tests-exchange"
 const channelNum = 1
 let conn = newAMQPConnection("localhost", "guest", "guest")
-conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOpen("/")
+let zeroChan = conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame)
+zeroChan.connectionOpen("/")
 
 let chan = conn.newAMQPChannel(number=channelNum, frames.handleFrame, frames.sendFrame)
 chan.channelOpen()
@@ -68,4 +68,4 @@ suite "AMQP Queue tests":
 
 chan.exchangeDelete("queue-tests-exchange", false, false)
 chan.channelClose()
-chan.connectionClose()
+zeroChan.connectionClose()

@@ -6,15 +6,14 @@
 import unittest
 
 import nim_amqp/frames
-import nim_amqp/field_table
 import nim_amqp/protocol
-import nim_amqp/types
 import nim_amqp/classes/channel
 import nim_amqp/classes/connection
 import nim_amqp/classes/exchange
 
 let conn = newAMQPConnection("localhost", "guest", "guest")
-conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOpen("/")
+let zeroChan = conn.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame)
+zeroChan.connectionOpen("/")
 
 let chan = conn.newAMQPChannel(number=10, frames.handleFrame, frames.sendFrame)
 chan.channelOpen()
@@ -28,4 +27,4 @@ suite "AMQP Exchange tests":
         chan.exchangeDelete("unit-test-delete-exchange", false, false)
 
 chan.channelClose()
-chan.connectionClose()
+zeroChan.connectionClose()

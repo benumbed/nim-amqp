@@ -11,6 +11,7 @@ import ../endian
 import ../errors
 import ../field_table
 import ../types
+import ../utils
 
 const CLASS_ID: uint16 = 50
 
@@ -79,7 +80,8 @@ proc queueDeclare*(chan: AMQPChannel, queueName: string, passive = false, durabl
     stream.write(args)
 
     debug "Creating queue", queue=queueName
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc queueDeclareOk*(chan: AMQPChannel) =
@@ -125,7 +127,8 @@ proc queueBind*(chan: AMQPChannel, queueName: string, exchangeName: string, rout
     stream.write(args)
 
     debug "Binding queue to exchange", queue=queueName, exchange=exchangeName, routingKey=routingKey
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc queueBindOk*(chan: AMQPChannel) =
@@ -170,7 +173,8 @@ proc queueUnBind*(chan: AMQPChannel, queueName: string, exchangeName: string, ro
     stream.write(args)
 
     debug "Unbinding queue from exchange", queue=queueName, exchange=exchangeName
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc queueUnBindOk*(chan: AMQPChannel) =
@@ -200,7 +204,8 @@ proc queuePurge*(chan: AMQPChannel, queueName: string, noWait: bool) =
     stream.write(uint8(noWait))
 
     debug "Purging queue", queue=queueName
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
 
 proc queuePurgeOk*(chan: AMQPChannel) =
@@ -231,7 +236,8 @@ proc queueDelete*(chan: AMQPChannel, queueName: string, ifUnused = false, ifEmpt
     stream.write(uint8(bitFields))
 
     debug "Deleting queue", queue=queueName
-    chan.sendFrame(stream, callback=chan.frames.handler)
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
     
 
 proc queueDeleteOk*(chan: AMQPChannel) =
