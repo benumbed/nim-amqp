@@ -20,9 +20,10 @@ To generate the API documentation, run `nim doc -o=docs/ --project src/nim_amqp.
 nimble install nim-amqp
 ```
 
-## Usage Example
+## Usage Examples
 **Note:** You'll need an AMQP server like RabbitMQ running locally to run this example. I recommend the `rabbitmq` Docker container.
 
+### Simple Consumer
 ```nim
 import nim_amqp
 import nim_ampq/classes/basic
