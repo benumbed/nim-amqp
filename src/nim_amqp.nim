@@ -246,7 +246,8 @@ proc registerReturnedMessageHandler*(chan: AMQPChannel, callback: MessageReturnC
     chan.returnCallback = callback
 
 
-proc startBlockingConsumer*(chan: AMQPChannel, reconnect=true) =
+proc startBlockingConsumer*(chan: AMQPChannel, queueName: string, noLocal: bool, noAck: bool, 
+                    exclusive: bool, noWait: bool, reconnect=true) =
     ## Starts a consumer process
     ## **NOTE**: This function enters a blocking loop, and will not return until the connection is terminated or CTRL+C\
     ##           is sent to the process.
@@ -258,6 +259,8 @@ proc startBlockingConsumer*(chan: AMQPChannel, reconnect=true) =
         raise newException(AMQPError, "The internal consumer loop requires you to set the message handler callback")
 
     info "Starting the nim-amqp blocking consumer"
+
+    chan.basicConsume("nim_amqp_test_queue", noLocal, noAck, exclusive, noWait)
     
     consumerLoopRunning = true
     proc killLoop() {.noconv.} =
@@ -295,7 +298,7 @@ when isMainModule:
     let chan = connect("localhost", "guest", "guest").createChannel()
     chan.createExchange("nim_amqp_test", "direct")
     chan.createAndBindQueue("nim_amqp_test_queue", "nim_amqp_test", "content-test")
-    chan.basicConsume("nim_amqp_test_queue", "content-test", false, false, false, false)
+    
     proc msgHandler(chan: AMQPChannel, message: ContentData) =
         ## Handle messages
         echo "Got a message!"
@@ -304,5 +307,4 @@ when isMainModule:
         
 
     chan.registerMessageHandler(msgHandler)
-    chan.startBlockingConsumer
-    quit(0)
+    chan.startBlockingConsumer("nim_amqp_test_queue", false, false, false, false)

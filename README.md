@@ -26,12 +26,10 @@ nimble install nim-amqp
 ### Simple Consumer
 ```nim
 import nim_amqp
-import nim_ampq/classes/basic
 
 let chan = connect("localhost", "guest", "guest").createChannel()
 chan.createExchange("nim_amqp_test", "direct")
 chan.createAndBindQueue("nim_amqp_test_queue", "nim_amqp_test", "content-test")
-chan.basicConsume("nim_amqp_test_queue", "content-test", false, false, false, false)
 
 proc msgHandler(chan: AMQPChannel, message: ContentData) =
     ## Handle messages
@@ -41,5 +39,5 @@ proc msgHandler(chan: AMQPChannel, message: ContentData) =
     
 
 chan.registerMessageHandler(msgHandler)
-chan.startBlockingConsumer
+chan.startBlockingConsumer("nim_amqp_test_queue", false, false, false, false)
 ```

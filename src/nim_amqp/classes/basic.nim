@@ -55,8 +55,8 @@ proc basicQosOk*(chan: AMQPChannel) =
     debug "Successful QoS request"
 
 
-proc basicConsume*(chan: AMQPChannel, queueName: string, consumerTag: string, noLocal: bool, noAck: bool, 
-                    exclusive: bool, noWait: bool, arguments = FieldTable()) =
+proc basicConsume*(chan: AMQPChannel, queueName: string, noLocal: bool, noAck: bool, 
+                    exclusive: bool, noWait: bool, consumerTag: string = "", arguments = FieldTable()) =
     ## Starts a consumer
     ## 
     if queueName.len > 255:
