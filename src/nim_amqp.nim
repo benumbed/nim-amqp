@@ -25,7 +25,7 @@ var channelTracking: Table[int, AMQPChannel]
 var nextChannel: int = 0
 var consumerLoopRunning = false
 
-proc connect*(host, username, password: string, vhost="/", port = 5672, tuning = AMQPTuning()): AMQPConnection =
+proc connect*(host, username, password: string, vhost="/", port = 5672, tuning = AMQPTuning(), useTls=false): AMQPConnection =
     ## Creates a new AMQP connection, authenticates, and then connects to the provided `vhost`
     ## 
     ## `host`: The AMQP host to connect to
@@ -35,7 +35,7 @@ proc connect*(host, username, password: string, vhost="/", port = 5672, tuning =
     ## `port`: Port number on the server to connect to, defaults to 5672
     ## `tuning`: AMQP tuning parameters, defaults to blank structure
     ##
-    result = newAMQPConnection(host, username, password, port, tuning=tuning)
+    result = newAMQPConnection(host, username, password, port, tuning=tuning, useTls=useTls)
     result.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOpen(vhost)
 
 

@@ -113,6 +113,7 @@ type
         maxReconnectAttempts*: int
         host*: string
         port*: Port
+        tls*: bool
         username*: string
         password*: string
         ready*: bool

@@ -13,10 +13,11 @@ import nim_amqp/classes/basic
 
 const exchName = "content-tests-exchange"
 const queueName = "content-tests-queue"
+const routingKey = "content-test"
 
-let chan = connect("localhost", "guest", "guest").createChannel()
+let chan = connect("localhost", "guest", "guest", port=5671, useTls=true).createChannel()
 chan.createExchange(exchName, "direct")
-chan.createAndBindQueue(queueName, exchName, "content-test")
+chan.createAndBindQueue(queueName, exchName, routingKey)
 
 suite "Content library tests (pub/sub)":
     test "Can consume a message from a queue":
@@ -25,10 +26,10 @@ suite "Content library tests (pub/sub)":
         props.deliveryMode = 2
 
         let content = "{\"somekey\": \"someval\"}"
-        chan.publish(content, exchName, "content-test", properties=props)
+        chan.publish(content, exchName, routingKey, properties=props)
 
 
-        chan.basicConsume(queueName, "content-test", false, false, false, false)
+        chan.basicConsume(queueName, routingKey, false, false, false, false)
         # basic.deliver
         chan.frames.handler(chan)
         # content header (will chain to body)
@@ -52,15 +53,12 @@ suite "Content library tests (pub/sub)":
         header.propertyList = props
         header.classId = 60
 
-        let content = "{\"somekey\": \"someval\"}"
-
+        let content = "{\"somekey-publish\": \"someval2\"}"
         header.bodySize = uint64(content.len)
 
-        let tmpchan = chan.conn.createChannel()
-
-        tmpchan.basicPublish(exchName, "content-test", false, false)
-        tmpchan.sendContentHeader(header)
-        tmpchan.sendContentBody(newStringStream(content))
+        chan.basicPublish(exchName, routingKey, false, false)
+        chan.sendContentHeader(header)
+        chan.sendContentBody(newStringStream(content))
 
 chan.removeQueue(queueName)
 chan.removeExchange(exchName)

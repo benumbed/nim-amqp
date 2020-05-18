@@ -1,9 +1,12 @@
-# Nim AMQP Library
+# Nim AMQP Library (nim-amqp)
 AMQP 0-9-1 implementation in Nim.  
 
 **NOTE:** This is RabbitMQ flavored AMQP 0-9-1.  The engineers who wrote RabbitMQ and the architects that designed AMQP 0-9-1 did not agree on some things (and to be fair the AMQP 0-9-1 spec contracticts itself in several important places), and so the RabbitMQ path was followed since it's a very common AMQP server.
 
-**NOTE 2:** This library is still a work in progress.  While the basic pub/sub capabilities are there, there's a lot of error handling and niceties that haven't been added yet.  AKA this library is a work in progress.  It's also currently only tested on Linux, so there may be gotchas in other OSes.
+**NOTE 2:** 
+  * This library is still a work in progress (AKA don't use this in production).  While the basic pub/sub capabilities are there, there's a lot of error handling and niceties that haven't been added yet.
+ * The library is currently only tested on Linux, so there may be gotchas in other OSes. I haven't had time to set up CI for this project yet.
+ * There is currently no SSL/TLS support, however it's coming Real Soon Now (TM)
 
 There are two ways to use this library, the abstraction layer, which exists in `nim_amqp.nim` or the AMQP class-based layer (not recommended).  Efforts are made to keep the documentation in the abstraction layer up to date as it changes.  The same can not be said for the class modules right now.
 
