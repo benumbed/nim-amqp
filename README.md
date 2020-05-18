@@ -6,8 +6,7 @@ AMQP 0-9-1 implementation in Nim.
 **NOTE 2:** 
   * This library is still a work in progress (AKA don't use this in production).  While the basic pub/sub capabilities are there, there's a lot of error handling and niceties that haven't been added yet.
  * The library is currently only tested on Linux, so there may be gotchas in other OSes. I haven't had time to set up CI for this project yet.
- * There is currently no SSL/TLS support, however it's coming Real Soon Now (TM)
-
+ 
 There are two ways to use this library, the abstraction layer, which exists in `nim_amqp.nim` or the AMQP class-based layer (not recommended).  Efforts are made to keep the documentation in the abstraction layer up to date as it changes.  The same can not be said for the class modules right now.
 
 Currently, the library is synchronous.  There is a desire to make it `multisync` (Nim's terminology for sync/async hybrid code), however this was my first project I tackled while learning Nim, so async support was temporarily shelved while I got my feet under me.

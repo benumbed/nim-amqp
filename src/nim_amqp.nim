@@ -32,8 +32,9 @@ proc connect*(host, username, password: string, vhost="/", port = 5672, tuning =
     ## `username`: Username to use to authenticate
     ## `password`: Password to use to authenticate
     ## `vhost`: vhost to connect to, defaults to '/'
-    ## `port`: Port number on the server to connect to, defaults to 5672
+    ## `port`: Port number on the server to connect to, defaults to 5672 (use 5671 for TLS)
     ## `tuning`: AMQP tuning parameters, defaults to blank structure
+    ## `useTls`: Enables TLS1.x on the connection (SSL of any version is not supported)
     ##
     result = newAMQPConnection(host, username, password, port, tuning=tuning, useTls=useTls)
     result.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOpen(vhost)

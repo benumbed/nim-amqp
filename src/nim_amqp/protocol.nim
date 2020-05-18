@@ -37,6 +37,7 @@ proc newAMQPConnection*(host, username, password: string, port = 5672, connectTi
         if not defined(ssl):
             raise newException(AMQPProtocolError, "TLS was requested, but not compiled in, recompile with `-d:ssl`")
         let ctxt = newContext(protTLSv1)
+        # Wrapping a non-connected socket didn't work, and I wasn't in the mood to figure out why
         ctxt.wrapConnectedSocket(result.sock, handshakeAsClient)
         if not result.sock.isSsl:
             raise newException(AMQPProtocolError, "The the TLS socket thinks it's not a TLS socket")
