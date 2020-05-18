@@ -260,12 +260,23 @@ proc registerReturnedMessageHandler*(chan: AMQPChannel, callback: MessageReturnC
     chan.returnCallback = callback
 
 
-proc startBlockingConsumer*(chan: AMQPChannel, queueName: string, noLocal: bool, noAck: bool, 
-                    exclusive: bool, noWait: bool, reconnect=true) =
+proc startBlockingConsumer*(chan: AMQPChannel, queueName: string, noLocal: bool = true, noAck: bool = false, 
+                    exclusive: bool = false, noWait: bool = false, reconnect=true) =
     ## Starts a consumer process
     ## **NOTE**: This function enters a blocking loop, and will not return until the connection is terminated or CTRL+C\
     ##           is sent to the process.
     ##
+    ## **queueName**: The name of the queue to attach the consumer to
+    ## 
+    ## **noLocal**: Tells the server not to send us messages that we've published on the current channel/connection
+    ## 
+    ## **noAck**: Tells the server not to expect acknowledgements for messages it sends us
+    ## 
+    ## **exclusive**: Requests that the server grant this consumer exclusive access to the provided queue
+    ## 
+    ## **noWait**: Tells the server not to respond to the basic.consume method (don't set this unless you know how it \
+    ##              works)
+    ## 
     ## **reconnect**: Will try to automatically reconnect on error.  The number of reconnect attempts is controlled \
     ##              from the `maxReconnectAttempts` variable on the active connection.
     ##
@@ -320,7 +331,6 @@ when isMainModule:
 
         # This permanently removes the message from the queue
         chan.acknowledgeMessage(0, useChanContentTag=true)
-
 
     chan.registerMessageHandler(msgHandler)
     chan.startBlockingConsumer("nim_amqp_test_queue", false, false, false, false)

@@ -39,7 +39,6 @@ proc msgHandler(chan: AMQPChannel, message: ContentData) =
     # This permanently removes the message from the queue
     chan.acknowledgeMessage(0, useChanContentTag=true)
 
-
 chan.registerMessageHandler(msgHandler)
 chan.startBlockingConsumer("nim_amqp_test_queue", false, false, false, false)
 ```
