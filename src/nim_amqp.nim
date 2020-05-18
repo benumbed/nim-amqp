@@ -25,7 +25,8 @@ var channelTracking: Table[int, AMQPChannel]
 var nextChannel: int = 0
 var consumerLoopRunning = false
 
-proc connect*(host, username, password: string, vhost="/", port = 5672, tuning = AMQPTuning(), useTls=false): AMQPConnection =
+proc connect*(host, username, password: string, vhost="/", port = 5672, tuning = AMQPTuning(), useTls=false
+                ): AMQPConnection =
     ## Creates a new AMQP connection, authenticates, and then connects to the provided `vhost`
     ## 
     ## **host**: The AMQP host to connect to
@@ -320,9 +321,13 @@ proc startAsyncConsumer*(chan: AMQPChannel) =
 
 
 when isMainModule:
+    let exchangeName = "nim_amqp_consumer_test"
+    let queueName = "nim_amqp_consumer"
+    let routingKey = "consumer-test"
+
     let chan = connect("localhost", "guest", "guest").createChannel()
-    chan.createExchange("nim_amqp_test", "direct")
-    chan.createAndBindQueue("nim_amqp_test_queue", "nim_amqp_test", "content-test")
+    chan.createExchange(exchangeName, "direct")
+    chan.createAndBindQueue(queueName, exchangeName, routingKey)
     
     proc msgHandler(chan: AMQPChannel, message: ContentData) =
         ## Handle messages
@@ -333,4 +338,4 @@ when isMainModule:
         chan.acknowledgeMessage(0, useChanContentTag=true)
 
     chan.registerMessageHandler(msgHandler)
-    chan.startBlockingConsumer("nim_amqp_test_queue", false, false, false, false)
+    chan.startBlockingConsumer(queueName, false, false, false, false)

@@ -27,9 +27,13 @@ nimble install nim-amqp
 ```nim
 import nim_amqp
 
+let exchangeName = "nim_amqp_consumer_test"
+let queueName = "nim_amqp_consumer"
+let routingKey = "consumer-test"
+
 let chan = connect("localhost", "guest", "guest").createChannel()
-chan.createExchange("nim_amqp_test", "direct")
-chan.createAndBindQueue("nim_amqp_test_queue", "nim_amqp_test", "content-test")
+chan.createExchange(exchangeName, "direct")
+chan.createAndBindQueue(queueName, exchangeName, routingKey)
 
 proc msgHandler(chan: AMQPChannel, message: ContentData) =
     ## Handle messages
@@ -40,5 +44,25 @@ proc msgHandler(chan: AMQPChannel, message: ContentData) =
     chan.acknowledgeMessage(0, useChanContentTag=true)
 
 chan.registerMessageHandler(msgHandler)
-chan.startBlockingConsumer("nim_amqp_test_queue", false, false, false, false)
+chan.startBlockingConsumer(queueName, false, false, false, false)
+```
+
+### Simple Producer
+```nim
+import nim_amqp
+
+let exchangeName = "nim_amqp_producer_test"
+let queueName = "nim_amqp_producer"
+let routingKey = "producer-test"
+
+let chan = connect("localhost", "guest", "guest").createChannel()
+chan.createExchange(exchangeName, "direct")
+chan.createAndBindQueue(queueName, exchangeName, routingKey)
+
+var props = AMQPBasicProperties()
+props.contentType = "application/json"
+props.deliveryMode = 2
+
+let content = "{\"hello\": \"world\"}"
+chan.publish(content, exchangeName, routingKey, properties=props)
 ```
