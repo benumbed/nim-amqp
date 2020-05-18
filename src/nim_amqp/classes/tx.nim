@@ -7,5 +7,3 @@
 import ../types
 
 var txMethodMap* = MethodMap()
-
-const CLASS_ID: uint16 = 90

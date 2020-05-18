@@ -71,3 +71,12 @@ proc constructContentFrame*(chan: AMQPChannel, contentFrameType: uint8, payload:
         raise newException(AMQPError, "constructContentFrame only accepts content frame types")
     
     return chan.constructFrame(contentFrameType, payload)
+
+proc writeMethodInfo*(stream: StringStream, classId: uint16, methodId: uint16) =
+    ## Writes the class and method info to a stream
+    ## 
+    ## `classId`: The numeric AMQP class ID
+    ## `methodId`: The numeric AMQP method ID
+    ##
+    stream.write(swapEndian(classId))
+    stream.write(swapEndian(methodId))

@@ -17,8 +17,6 @@ import ../field_table
 import ../types
 import ../utils
 
-const CLASS_ID: uint16 = 10
-
 type AMQPConnectionError* = object of AMQPError
 
 const RMQCompatibleProducts = @["RabbitMQ"]
@@ -218,7 +216,7 @@ proc connectionTuneOk*(chan: AMQPChannel) =
     let stream = newStringStream()
 
     # Class and Method IDs
-    stream.write(swapEndian(uint16(CLASS_ID)))
+    stream.write(swapEndian(uint16(AMQP_CLASS_CONNECTION)))
     stream.write(swapEndian(uint16(31)))
 
     stream.write(swapEndian(chan.conn.tuning.channelMax))
@@ -236,7 +234,7 @@ proc connectionOpen*(chan: AMQPChannel, vhost: string = "/") =
     ## connection.open implementation
     let stream = newStringStream()
 
-    stream.write(swapEndian(uint16(CLASS_ID)))
+    stream.write(swapEndian(uint16(AMQP_CLASS_CONNECTION)))
     stream.write(swapEndian(uint16(40)))
 
     stream.write(uint8(len(vhost)))
@@ -269,7 +267,7 @@ proc connectionClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="N
     ## connection.close -- Client response
     let stream = newStringStream()
 
-    stream.write(swapEndian(uint16(CLASS_ID)))
+    stream.write(swapEndian(uint16(AMQP_CLASS_CONNECTION)))
     stream.write(swapEndian(uint16(50)))
 
     stream.write(swapEndian(reply_code))
@@ -280,6 +278,8 @@ proc connectionClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="N
     stream.write(swapEndian(methodId))
 
     stream.setPosition(0)
+
+    # chan.conn.ready = false
 
     discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse = true)
 
@@ -311,7 +311,7 @@ proc connectionCloseOk*(chan: AMQPChannel) =
     ## connection.close-ok implementation -- Client 
     let stream = newStringStream()
 
-    stream.write(swapEndian(uint16(CLASS_ID)))
+    stream.write(swapEndian(uint16(AMQP_CLASS_CONNECTION)))
     stream.write(swapEndian(uint16(51)))
     stream.setPosition(0)
 

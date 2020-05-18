@@ -13,8 +13,6 @@ import ../field_table
 import ../types
 import ../utils
 
-const CLASS_ID: uint16 = 40
-
 type AMQPExchangeError* = object of AMQPError
 
 proc exchangeDeclareOk*(chan: AMQPChannel)
@@ -37,7 +35,7 @@ proc exchangeDeclare*(chan: AMQPChannel, exchangeName: string, exchangeType: str
     let stream = newStringStream()
 
     # Class and Method
-    stream.write(swapEndian(CLASS_ID))
+    stream.write(swapEndian(AMQP_CLASS_EXCHANGE))
     stream.write(swapEndian(uint16(10)))
 
     stream.write(swapEndian(uint16(0)))
@@ -76,7 +74,7 @@ proc exchangeDelete*(chan: AMQPChannel, exchangeName: string, ifUnused: bool, no
     let stream = newStringStream()
 
     # Class and Method
-    stream.write(swapEndian(CLASS_ID))
+    stream.write(swapEndian(AMQP_CLASS_EXCHANGE))
     stream.write(swapEndian(uint16(20)))
 
     stream.write(swapEndian(uint16(0)))

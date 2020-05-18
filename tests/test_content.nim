@@ -3,6 +3,7 @@
 ##
 ## (C) 2020 Benumbed (Nick Whalen) <benumbed@projectneutron.com> -- All Rights Reserved
 ##
+import streams
 import unittest
 
 import nim_amqp
@@ -18,23 +19,27 @@ chan.createExchange(exchName, "direct")
 chan.createAndBindQueue(queueName, exchName, "content-test")
 
 suite "Content library tests (pub/sub)":
-    # test "Can consume a message from a queue":
-    #     var props = AMQPBasicProperties()
-    #     props.contentType = "application/json"
-    #     props.deliveryMode = 2
-    #     props.headers = FieldTable()
+    test "Can consume a message from a queue":
+        var props = AMQPBasicProperties()
+        props.contentType = "application/json"
+        props.deliveryMode = 2
 
-    #     var header = AMQPContentHeader()
-    #     header.propertyList = props
-    #     header.classId = 60
+        let content = "{\"somekey\": \"someval\"}"
+        chan.publish(content, exchName, "content-test", properties=props)
 
-    #     let content = "{\"somekey\": \"someval\"}"
 
-    #     header.bodySize = uint64(content.len)
+        chan.basicConsume(queueName, "content-test", false, false, false, false)
+        # basic.deliver
+        chan.frames.handler(chan)
+        # content header (will chain to body)
+        chan.frames.handler(chan)
 
-    #     conn.basicPublish(exchName, "content-test", false, false)
-    #     conn.sendContentHeader(header)
-    #     conn.sendContentBody(content)
+        check:
+            chan.curContent.body.readAll() == content
+            chan.curContent.header.propertyList.contentType == props.contentType
+            chan.curContent.header.propertyList.deliveryMode == props.deliveryMode
+
+        chan.basicAck(chan.curContent.metadata.deliveryTag)
 
 
     test "Can create a message to publish":
@@ -51,9 +56,12 @@ suite "Content library tests (pub/sub)":
 
         header.bodySize = uint64(content.len)
 
-        chan.basicPublish(exchName, "content-test", false, false)
-        chan.sendContentHeader(header)
-        chan.sendContentBody(content)
+        let tmpchan = chan.conn.createChannel()
 
+        tmpchan.basicPublish(exchName, "content-test", false, false)
+        tmpchan.sendContentHeader(header)
+        tmpchan.sendContentBody(newStringStream(content))
+
+chan.removeQueue(queueName)
 chan.removeExchange(exchName)
 chan.disconnect()

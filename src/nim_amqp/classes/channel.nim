@@ -13,8 +13,6 @@ import ../errors
 import ../types
 import ../utils
 
-const CLASS_ID: uint16 = 20
-
 type AMQPChannelError* = object of AMQPError
 
 proc channelOpenOk(chan: AMQPChannel)
@@ -36,7 +34,7 @@ proc channelOpen*(chan: AMQPChannel) =
     let stream = newStringStream()
 
     # Class and Method
-    stream.write(swapEndian(CLASS_ID))
+    stream.write(swapEndian(AMQP_CLASS_CHANNEL))
     stream.write(swapEndian(uint16(10)))
 
     stream.write(uint8(len("")))
@@ -62,7 +60,7 @@ proc channelFlow*(chan: AMQPChannel, flow: bool) =
     let stream = newStringStream()
 
     # Class and Method
-    stream.write(swapEndian(CLASS_ID))
+    stream.write(swapEndian(AMQP_CLASS_CHANNEL))
     stream.write(swapEndian(uint16(20)))
 
     stream.write(uint8(flow))
@@ -92,7 +90,7 @@ proc channelClose*(chan: AMQPChannel, reply_code: uint16 = 200, reply_text="Norm
     ## 
     let stream = newStringStream()
 
-    stream.write(swapEndian(CLASS_ID))
+    stream.write(swapEndian(AMQP_CLASS_CHANNEL))
     stream.write(swapEndian(uint16(40)))
 
     stream.write(swapEndian(reply_code))
@@ -132,7 +130,7 @@ proc channelCloseOk*(chan: AMQPChannel) =
     ## 
     let stream = newStringStream()
 
-    stream.write(swapEndian(CLASS_ID))
+    stream.write(swapEndian(AMQP_CLASS_CHANNEL))
     stream.write(swapEndian(uint16(41)))
 
     stream.setPosition(0)

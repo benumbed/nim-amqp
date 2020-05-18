@@ -5,10 +5,12 @@
 ##
 import chronicles
 import net
+import streams
 import strformat
 import system
 import tables
 
+import nim_amqp/content
 import nim_amqp/errors
 import nim_amqp/frames
 import nim_amqp/protocol
@@ -150,16 +152,46 @@ proc removeQueue*(chan: AMQPChannel, queueName: string, ifUnused = false, ifEmpt
     chan.queueDelete(queueName, ifUnused, ifEmpty, noWait)
 
 
-proc publish*(chan: AMQPChannel, exchangeName: string, routingKey: string, mandatory: bool, immediate: bool) =
+proc publish*(chan: AMQPChannel, body: Stream, bodyLen: int, exchangeName: string, routingKey: string, 
+                properties = AMQPBasicProperties(), mandatory = false, immediate = false) =
     ## Publish a message to the server
     ## 
+    ## `body`: The message body as a stream
+    ## `bodyLen`: Length/size of the provided body
     ## `exchangeName`: Exchange to publish message to
     ## `routingKey`: The routing key to provide to the exchange 
+    ## `properties`: Properties you wish to send to the server along with the body data
     ## `mandatory`: If the message cannot be routed, it will be returned via basic.return
     ## `immediate`: If true, and the server cannot route the message to a consumer immedaitely the server will return 
     ##              the message (via basic.return)
     ##
+    var mutProperties = properties
+    
+    if mutProperties.contentType == "":
+        mutProperties.contentType = "application/octet-stream"
+    if isnil mutProperties.headers:
+        mutProperties.headers = new(FieldTable)
+ 
+    var header = AMQPContentHeader(propertyList: mutProperties, classId: AMQP_CLASS_BASIC, bodySize: uint64(bodyLen))
+    
     chan.basicPublish(exchangeName, routingKey, mandatory, immediate)
+    chan.sendContentHeader(header)
+    chan.sendContentBody(body)
+
+
+proc publish*(chan: AMQPChannel, body: string, exchangeName: string, routingKey: string, 
+                properties = AMQPBasicProperties(), mandatory = false, immediate = false) =
+    ## Publish a message to the server
+    ## 
+    ## `body`: The message body as a string
+    ## `exchangeName`: Exchange to publish message to
+    ## `routingKey`: The routing key to provide to the exchange 
+    ## `properties`: Properties you wish to send to the server along with the body data
+    ## `mandatory`: If the message cannot be routed, it will be returned via basic.return
+    ## `immediate`: If true, and the server cannot route the message to a consumer immedaitely the server will return 
+    ##              the message (via basic.return)
+    ##
+    chan.publish(newStringStream(body), body.len, exchangeName, routingKey, properties, mandatory, immediate)
 
 
 proc registerMessageHandler*(chan: AMQPChannel, callback: ConsumerMsgCallback) =
@@ -229,11 +261,11 @@ when isMainModule:
     chan.createExchange("nim_amqp_test", "direct")
     chan.createAndBindQueue("nim_amqp_test_queue", "nim_amqp_test", "content-test")
     chan.basicConsume("nim_amqp_test_queue", "content-test", false, false, false, false)
-    proc msgHandler(chan: AMQPChannel, header: AMQPContentHeader, body: Stream) =
+    proc msgHandler(chan: AMQPChannel, message: ContentData) =
         ## Handle messages
         echo "Got a message!"
-        echo "content-type: ", header.propertyList.contentType
-        echo "body:\n", body.readAll()
+        echo "content-type: ", message.header.propertyList.contentType
+        echo "body:\n", message.body.readAll()
         
 
     chan.registerMessageHandler(msgHandler)

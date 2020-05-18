@@ -53,8 +53,7 @@ proc sendFrame*(chan: AMQPChannel, frameAlt: AMQPFrame = nil, expectResponse = f
         if frame.payloadSize > 0:
             stream.write(frame.payloadString)
     
-    # Note to future self: write treats 0xCE as 32b, that's why we need the cast
-    stream.write(uint8(0xCE))
+    stream.write(AMQP_FRAME_END)
     stream.setPosition(0)
 
     try:
@@ -114,7 +113,7 @@ proc handleFrame*(chan: AMQPChannel, blocking = true) =
         let data = conn.sock.recv(int(frame.payloadSize), conn.readTimeout)
 
         # Ensure the frame-end octet matches the spec
-        if byte(data[frame.payloadSize-1]) != 0xCE:
+        if byte(data[frame.payloadSize-1]) != AMQP_FRAME_END:
             raise newException(AMQPFrameError, "Corrupt frame, missing 0xCE ending marker")
 
         frame.payloadStream.write(initialData.readUint8)
@@ -154,17 +153,17 @@ proc handleMethod(chan: AMQPChannel) =
     let methodId = swapEndian(frame.payloadStream.readUint16())
 
     case classId:
-        of uint16(10):
+        of uint16(AMQP_CLASS_CONNECTION):
             connectionMethodMap[methodId](chan)
-        of uint16(20):
+        of uint16(AMQP_CLASS_CHANNEL):
             channelMethodMap[methodId](chan)
-        of uint16(40):
+        of uint16(AMQP_CLASS_EXCHANGE):
             exchangeMethodMap[methodId](chan)
-        of uint16(50):
+        of uint16(AMQP_CLASS_QUEUE):
             queueMethodMap[methodId](chan)
-        of uint16(60):
+        of uint16(AMQP_CLASS_BASIC):
             basicMethodMap[methodId](chan)
-        of uint16(70):
+        of uint16(AMQP_CLASS_TX):
             txMethodMap[methodId](chan)
         else:
             raise newAMQPException(AMQPFrameError, fmt"Got unknown class ID '{classId}'", classID, methodID)

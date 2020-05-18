@@ -17,6 +17,14 @@ const FRAME_CONTENT_BODY* = uint8(3)
 # The spec body says the frame type is 4, but the grammar says 8, RabbitMQ followed the grammar, so do we
 const FRAME_HEARTBEAT* = uint8(8)
 
+const AMQP_CLASS_CONNECTION*: uint16 = 10
+const AMQP_CLASS_CHANNEL*: uint16 = 20
+const AMQP_CLASS_EXCHANGE*: uint16 = 40
+const AMQP_CLASS_QUEUE*: uint16 = 50
+const AMQP_CLASS_BASIC*: uint16 = 60
+const AMQP_CLASS_TX*: uint16 = 90
+
+const AMQP_FRAME_END*: uint8 = 0xCE
 
 type AMQPFramePayloadType* = enum
     ptStream,
@@ -124,9 +132,7 @@ type
         active*: bool
         flow*: bool
         curFrame*: AMQPFrame
-        curContentHeader*: AMQPContentHeader
-        curContentBody*: Stream
-        curContentBodyLen*: uint64  # Needed because the body's most likely a stream
+        curContent*: ContentData
         frames*: AMQPFrameHandling
         messageCallback*: ConsumerMsgCallback
         returnCallback*: MessageReturnCallback
@@ -148,14 +154,26 @@ type
         reserved*: string            # Must be empty
 
     AMQPContentHeader* = object
-        classId*: uint16
-        # This is unused
-        weight*: uint16
+        classId*: uint16            # Not used when publishing data to the server (ignored)
+        weight*: uint16             # This is unused
         bodySize*: uint64
         propertyFlags*: uint16
         propertyList*: AMQPBasicProperties
 
-    ConsumerMsgCallback* = proc(chan: AMQPChannel, header: AMQPContentHeader, body: Stream)
+    ContentMetadata* = object
+        consumerTag*: string
+        deliveryTag*: uint64
+        redelivered*: bool
+        exchangeName*: string
+        routingKey*: string
+
+    ContentData* = object
+        header*: AMQPContentHeader
+        body*: Stream
+        bodyLen*: uint64
+        metadata*: ContentMetadata
+
+    ConsumerMsgCallback* = proc(chan: AMQPChannel, message: ContentData)
     MessageReturnCallback* = proc(chan: AMQPChannel, replyCode: uint16, replyText: string, exchangeName: string, 
                                 routingKey: string)
 

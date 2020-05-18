@@ -180,7 +180,7 @@ proc sendContentHeader*(chan: AMQPChannel, header: AMQPContentHeader) =
     ##
     discard chan.frames.sender(chan, chan.constructContentFrame(FRAME_CONTENT_HEADER, header.toWire))
 
-proc sendContentBody*(chan: AMQPChannel, body: string) =
+proc sendContentBody*(chan: AMQPChannel, body: Stream) =
     ## Sends the content body described by the content header
     ##
     discard chan.frames.sender(chan, chan.constructContentFrame(FRAME_CONTENT_BODY, body))
@@ -189,8 +189,7 @@ proc sendContentBody*(chan: AMQPChannel, body: string) =
 proc handleContentHeader*(chan: AMQPChannel) =
     ## Handles an incoming content header
     ## 
-    # A new content header means whatever body data we have stored is now invalidated
-    chan.curContentBody = newStringStream()
+    # NOTE: The content data structure is initialized by basic.deliver (which happens before we get a content header)
     let stream = chan.curFrame.payloadStream
 
     let classId = swapEndian(stream.readUint16())
@@ -198,23 +197,28 @@ proc handleContentHeader*(chan: AMQPChannel) =
     let bodySize = swapEndian(stream.readUint64())
     let propFlags = swapEndian(stream.readUint16())
 
-    chan.curContentHeader = AMQPContentHeader(classId:classId, weight:weight, bodySize:bodySize, 
+    chan.curContent.header = AMQPContentHeader(classId:classId, weight:weight, bodySize:bodySize, 
                                 propertyFlags:propFlags, propertyList:basicPropsFromWire(stream, propFlags))
 
     debug "Content Header", classId=classId, weight=weight, bodySize=bodySize, propFlags=propFlags
+
+    if bodySize > 0:
+        chan.frames.handler(chan)
 
 
 proc handleContentBody*(chan: AMQPChannel) =
     ## Handles incoming content bodies.  Note that AMQP allows for chunking, so this provides for extending the body
     ##
     let raw = chan.curFrame.payloadStream.readAll().strip()
-    if raw[raw.len-1] != char(0xCE):
+    if raw[raw.len-1] != char(AMQP_FRAME_END):
         raise newException(AMQPContentError, "Encountered corrupted content body frame, 0xCE terminator not found")
     
     let chunk = raw[0..raw.len-2]
-    chan.curContentBodyLen.inc(chunk.len)
-    chan.curContentBody.write(chunk)
+    chan.curContent.bodyLen.inc(chunk.len)
+    chan.curContent.body.write(chunk)
 
-    if chan.curContentBodyLen == chan.curContentHeader.bodySize:
-        chan.curContentBody.setPosition(0)
-        chan.messageCallback(chan, chan.curContentHeader, chan.curContentBody)
+    if chan.curContent.bodyLen == chan.curContent.header.bodySize:
+        chan.curContent.body.setPosition(0)
+
+    if not isnil chan.messageCallback:
+        chan.messageCallback(chan, chan.curContent)

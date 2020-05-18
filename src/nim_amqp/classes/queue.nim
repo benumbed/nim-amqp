@@ -13,8 +13,6 @@ import ../field_table
 import ../types
 import ../utils
 
-const CLASS_ID: uint16 = 50
-
 type AMQPQueueError* = object of AMQPError
 
 proc queueDeclareOk*(chan: AMQPChannel)
@@ -61,7 +59,7 @@ proc queueDeclare*(chan: AMQPChannel, queueName: string, passive = false, durabl
     let stream = newStringStream()
 
     # Class and Method
-    stream.write(swapEndian(CLASS_ID))
+    stream.write(swapEndian(AMQP_CLASS_QUEUE))
     stream.write(swapEndian(uint16(10)))
 
     stream.write(swapEndian(uint16(0)))
@@ -103,7 +101,7 @@ proc queueBind*(chan: AMQPChannel, queueName: string, exchangeName: string, rout
     let stream = newStringStream()
 
     # Class and Method
-    stream.write(swapEndian(CLASS_ID))
+    stream.write(swapEndian(AMQP_CLASS_QUEUE))
     stream.write(swapEndian(uint16(20)))
 
     stream.write(swapEndian(uint16(0)))
@@ -151,7 +149,7 @@ proc queueUnBind*(chan: AMQPChannel, queueName: string, exchangeName: string, ro
     let stream = newStringStream()
 
     # Class and Method
-    stream.write(swapEndian(CLASS_ID))
+    stream.write(swapEndian(AMQP_CLASS_QUEUE))
     stream.write(swapEndian(uint16(50)))
 
     stream.write(swapEndian(uint16(0)))
@@ -183,16 +181,19 @@ proc queueUnBindOk*(chan: AMQPChannel) =
     debug "Unbound queue from exchange"
 
 
-proc queuePurge*(chan: AMQPChannel, queueName: string, noWait: bool) =
+proc queuePurge*(chan: AMQPChannel, queueName: string, noWait: bool = false) =
     ## Purges the `queueName` queue
     ## 
+    ## `queueName`: Name of the queue to purge
+    ## `noWait`: Tell server to not send a response
+    ##
     if queueName.len > 255:
         raise newException(AMQPQueueError, "Queue name must be 255 characters or less")
 
     let stream = newStringStream()
 
     # Class and Method
-    stream.write(swapEndian(CLASS_ID))
+    stream.write(swapEndian(AMQP_CLASS_QUEUE))
     stream.write(swapEndian(uint16(30)))
 
     stream.write(swapEndian(uint16(0)))
@@ -222,7 +223,7 @@ proc queueDelete*(chan: AMQPChannel, queueName: string, ifUnused = false, ifEmpt
     let stream = newStringStream()
 
     # Class and Method
-    stream.write(swapEndian(CLASS_ID))
+    stream.write(swapEndian(AMQP_CLASS_QUEUE))
     stream.write(swapEndian(uint16(40)))
 
     stream.write(swapEndian(uint16(0)))

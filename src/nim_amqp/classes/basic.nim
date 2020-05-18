@@ -13,8 +13,6 @@ import ../field_table
 import ../types
 import ../utils
 
-const CLASS_ID: uint16 = 60
-
 type AMQPBasicError* = object of AMQPError
 
 proc basicQosOk*(chan: AMQPChannel)
@@ -41,10 +39,7 @@ proc basicQos*(chan: AMQPChannel, prefetchCount: uint16, global: bool) =
     ## Sets QoS parameters on the server.
     ## 
     let stream = newStringStream()
-
-    # Class and Method
-    stream.write(swapEndian(CLASS_ID))
-    stream.write(swapEndian(uint16(10)))
+    writeMethodInfo(stream, AMQP_CLASS_BASIC, uint16(10))
 
     stream.write(swapEndian(uint32(0)))
     stream.write(swapEndian(uint16(prefetchCount)))
@@ -70,10 +65,7 @@ proc basicConsume*(chan: AMQPChannel, queueName: string, consumerTag: string, no
         raise newException(AMQPBasicError, "consumer-tag must be 255 characters or less")
 
     let stream = newStringStream()
-
-    # Class and Method
-    stream.write(swapEndian(CLASS_ID))
-    stream.write(swapEndian(uint16(20)))
+    writeMethodInfo(stream, AMQP_CLASS_BASIC, uint16(20))
 
     stream.write(swapEndian(uint16(0)))
 
@@ -117,10 +109,7 @@ proc basicCancel*(chan: AMQPChannel, consumerTag: string, noWait: bool) =
         raise newException(AMQPBasicError, "consumer-tag must be 255 characters or less")
 
     let stream = newStringStream()
-
-    # Class and Method
-    stream.write(swapEndian(CLASS_ID))
-    stream.write(swapEndian(uint16(30)))
+    writeMethodInfo(stream, AMQP_CLASS_BASIC, uint16(30))
 
     # consumer-tag
     stream.write(uint8(consumerTag.len))
@@ -152,10 +141,7 @@ proc basicPublish*(chan: AMQPChannel, exchangeName: string, routingKey: string, 
         raise newException(AMQPBasicError, "Routing key name must be 255 characters or less")
 
     let stream = newStringStream()
-
-    # Class and Method
-    stream.write(swapEndian(CLASS_ID))
-    stream.write(swapEndian(uint16(40)))
+    writeMethodInfo(stream, AMQP_CLASS_BASIC, uint16(40))
 
     stream.write(swapEndian(uint16(0)))
 
@@ -171,10 +157,9 @@ proc basicPublish*(chan: AMQPChannel, exchangeName: string, routingKey: string, 
     let bitFields = (uint8(mandatory)) or (uint8(immediate) shl 1)
     stream.write(uint8(bitFields))
 
-    debug "Sending basicPublish", exchange=exchangeName, mandatory=mandatory, immediate=immediate
+    debug "Sending basic.publish", exchange=exchangeName, mandatory=mandatory, immediate=immediate
     
     discard chan.frames.sender(chan, chan.constructMethodFrame(stream))
-    
 
 
 proc basicReturn*(chan: AMQPChannel) =
@@ -215,3 +200,49 @@ proc basicDeliver(chan: AMQPChannel) =
 
     debug "basic.deliver", consumerTag=consumerTag, deliveryTag=deliveryTag, redelivered=redelivered, 
         exchangeName=exchangeName, routingKey=routingKey
+
+    let meta = ContentMetadata(
+        consumerTag: consumerTag, deliveryTag: deliveryTag, redelivered: redelivered, exchangeName: exchangeName, 
+        routingKey: routingKey
+    )
+    chan.curContent = ContentData(header: AMQPContentHeader(), body: newStringStream(), metadata: meta)
+
+
+proc basicAck*(chan: AMQPChannel, deliveryTag: uint64, multiple: bool = false) =
+    ## Acknowledges one or more messages
+    ## 
+    ## `deliveryTag`: The tag of the message to acknowledge.  If `multiple` is true, this ack means all unacked messages
+    ##                up to and including the one matching the tag.  If `deliveryTag` is zero and `multiple` is true, 
+    ##                then the server will mark all unacked messages as acked.
+    ## `multiple`: Acknowledge multiple messages
+    ##
+    let stream = newStringStream()
+
+    writeMethodInfo(stream, AMQP_CLASS_BASIC, uint16(80))
+
+    # exchange
+    stream.write(swapEndian(deliveryTag))
+    stream.write(uint8(multiple))
+
+    debug "Sending basic.ack", deliveryTag=deliveryTag, multiple=multiple
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream))
+
+
+proc basicReject*(chan: AMQPChannel, deliveryTag: uint64, requeue: bool = false) =
+    ## Rejects a message delivered to a consumer
+    ## 
+    ## `deliveryTag`: The tag of the message being rejected.
+    ## `requeue`: Tell the server to re-queue the message
+    ##
+    let stream = newStringStream()
+
+    writeMethodInfo(stream, AMQP_CLASS_BASIC, uint16(80))
+
+    # exchange
+    stream.write(swapEndian(deliveryTag))
+    stream.write(uint8(requeue))
+
+    debug "Sending basic.reject", deliveryTag=deliveryTag, requeue=requeue
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream))
