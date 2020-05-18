@@ -2,7 +2,7 @@
 AMQP 0-9-1 implementation in Nim.  
 
 ## NOTES
-* This is RabbitMQ flavored AMQP 0-9-1.  The engineers who wrote RabbitMQ and the architects that designed AMQP 0-9-1 did not agree on some things (and to be fair the AMQP 0-9-1 spec contradicts itself in several important places), and so the RabbitMQ path was followed since it's a very common AMQP server.
+* This is RabbitMQ flavored AMQP 0-9-1.  The engineers who wrote RabbitMQ and the architects that designed AMQP 0-9-1 did not agree on some things (and, to be fair, the AMQP 0-9-1 spec contradicts itself in several important places), and so the RabbitMQ path was followed since it's a very common AMQP server.
 
 * This library is still a work in progress (AKA don't use this in production).  While the basic pub/sub capabilities are there, there's a lot of error handling and niceties that haven't been added yet.
 * The library is currently only tested on Linux, so there may be gotchas in other OSes. I haven't had time to set up CI for this project yet.
