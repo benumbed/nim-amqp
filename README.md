@@ -33,10 +33,12 @@ chan.createAndBindQueue("nim_amqp_test_queue", "nim_amqp_test", "content-test")
 
 proc msgHandler(chan: AMQPChannel, message: ContentData) =
     ## Handle messages
-    echo "Got a message!"
-    echo "content-type: ", message.header.propertyList.contentType
-    echo "body:\n", message.body.readAll()
-    
+    ##
+    warn "Got a message", contentType=message.header.propertyList.contentType, body=message.body.readAll()
+
+    # This permanently removes the message from the queue
+    chan.acknowledgeMessage(0, useChanContentTag=true)
+
 
 chan.registerMessageHandler(msgHandler)
 chan.startBlockingConsumer("nim_amqp_test_queue", false, false, false, false)

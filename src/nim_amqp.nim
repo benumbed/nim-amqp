@@ -229,6 +229,20 @@ proc publish*(chan: AMQPChannel, body: string, exchangeName: string, routingKey:
     chan.publish(newStringStream(body), body.len, exchangeName, routingKey, properties, mandatory, immediate)
 
 
+proc acknowledgeMessage*(chan: AMQPChannel, deliveryTag: uint64, multiple: bool = false, useChanContentTag=true) =
+    ## Tells the server the message specified by `deliveryTag` has been successfully processed
+    ## 
+    ## `deliveryTag`: The tag of the message to acknowledge.  If `multiple` is true, this ack means all unacked messages
+    ##                up to and including the one matching the tag.  If `deliveryTag` is zero and `multiple` is true, 
+    ##                then the server will mark all unacked messages as acked.
+    ## `multiple`: Acknowledge multiple messages
+    ## `useChanContentTag`: Will look up the deliveryTag within the `curContent` structure attached to the channel. \
+    ##                      This will cause `deliveryTag` to be ignored.
+    ##
+    let tag = if useChanContentTag: chan.curContent.metadata.deliveryTag else: deliveryTag
+    chan.basicAck(tag, multiple)
+
+
 proc registerMessageHandler*(chan: AMQPChannel, callback: ConsumerMsgCallback) =
     ## Registers a handler (scoped to current channel) that is called when the server sends a message to a consumer
     ## 
@@ -301,10 +315,12 @@ when isMainModule:
     
     proc msgHandler(chan: AMQPChannel, message: ContentData) =
         ## Handle messages
-        echo "Got a message!"
-        echo "content-type: ", message.header.propertyList.contentType
-        echo "body:\n", message.body.readAll()
-        
+        ##
+        warn "Got a message", contentType=message.header.propertyList.contentType, body=message.body.readAll()
+
+        # This permanently removes the message from the queue
+        chan.acknowledgeMessage(0, useChanContentTag=true)
+
 
     chan.registerMessageHandler(msgHandler)
     chan.startBlockingConsumer("nim_amqp_test_queue", false, false, false, false)
