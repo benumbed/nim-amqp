@@ -2,4 +2,5 @@ nimcache/
 temp/
 
 build/
+docs/
 *.swp
