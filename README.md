@@ -44,7 +44,7 @@ proc msgHandler(chan: AMQPChannel, message: ContentData) =
     chan.acknowledgeMessage(0, useChanContentTag=true)
 
 chan.registerMessageHandler(msgHandler)
-chan.startBlockingConsumer(queueName, false, false, false, false)
+chan.startBlockingConsumer(queueName, noLocal=false)
 ```
 
 ### Simple Producer

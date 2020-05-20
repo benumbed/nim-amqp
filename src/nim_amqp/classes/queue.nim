@@ -29,26 +29,6 @@ queueMethodMap[31] = queuePurgeOk
 queueMethodMap[41] = queueDeleteOk
 
 
-proc sendFrame(chan: AMQPChannel, payloadStrm: Stream, callback: FrameHandlerProc = nil) = 
-    payloadStrm.setPosition(0)
-    let payload = payloadStrm.readAll()
-
-    chan.curFrame = AMQPFrame(
-        frameType: 1,
-        channel: swapEndian(chan.number),
-        payloadType: ptString,
-        payloadSize: swapEndian(uint32(payload.len)),
-        payloadString: payload
-    )
-
-    let sendRes = chan.frames.sender(chan)
-    if sendRes.error:
-        raise newException(AMQPQueueError, sendRes.result)
-
-    if callback != nil:
-        callback(chan)
-
-
 proc queueDeclare*(chan: AMQPChannel, queueName: string, passive = false, durable = false, exclusive = false, 
                     autoDelete = false, noWait = false, arguments = FieldTable()) =
     ## Requests for the server to create a new queue, `queueName` (queue.declare)
