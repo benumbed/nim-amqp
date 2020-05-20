@@ -20,9 +20,9 @@ proc basicConsumeOk*(chan: AMQPChannel)
 proc basicCancelOk*(chan: AMQPChannel)
 proc basicReturn*(chan: AMQPChannel)
 proc basicDeliver*(chan: AMQPChannel)
-# proc basicGetOk*(chan: AMQPChannel)
-# proc basicGetEmpty*(chan: AMQPChannel)
-# proc basicRecoverOk*(chan: AMQPChannel)
+proc basicGetOk*(chan: AMQPChannel)
+proc basicGetEmpty*(chan: AMQPChannel)
+proc basicRecoverOk*(chan: AMQPChannel)
 
 var basicMethodMap* = MethodMap()
 basicMethodMap[11] = basicQosOk
@@ -30,9 +30,9 @@ basicMethodMap[21] = basicConsumeOk
 basicMethodMap[31] = basicCancelOk
 basicMethodMap[50] = basicReturn
 basicMethodMap[60] = basicDeliver
-# basicMethodMap[71] = basicGetOk
-# basicMethodMap[72] = basicGetEmpty
-# basicMethodMap[111] = basicRecoverOk
+basicMethodMap[71] = basicGetOk
+basicMethodMap[72] = basicGetEmpty
+basicMethodMap[111] = basicRecoverOk
 
 
 proc basicQos*(chan: AMQPChannel, prefetchCount: uint16, global: bool) =
@@ -208,6 +208,65 @@ proc basicDeliver(chan: AMQPChannel) =
     chan.curContent = ContentData(header: AMQPContentHeader(), body: newStringStream(), metadata: meta)
 
 
+proc basicGet*(chan: AMQPChannel, queueName: string, noAck = false) =
+    ## Tells the server to send us a message
+    ## 
+    ## `queueName`: Queue name to get a message from
+    ## `noAck`: Tell the server not to expect an ack (automatically mark the message as acknowledged)
+    ##
+    let stream = newStringStream()
+
+    writeMethodInfo(stream, AMQP_CLASS_BASIC, uint16(70))
+
+    # Reserved param
+    stream.write(uint16(0))
+
+    stream.write(uint8(queueName.len))
+    stream.write(queueName)
+
+    stream.write(uint8(noAck))
+
+    debug "Sending basic.get", queueName=queueName, noAck=noAck
+
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse=true)
+
+
+proc basicGetOk(chan: AMQPChannel) =
+    ## Incoming 'ok' from server in response to a basic.get.  This provides (mostly) the same data as basic.deliver
+    ## 
+    let stream = chan.curFrame.payloadStream
+    
+    # delivery-tag
+    let deliveryTag = swapEndian(stream.readUint64())
+    # redelivered
+    let redelivered = bool(stream.readUint8())
+    # exchange-name
+    let exchNameSize = stream.readUint8()
+    let exchangeName = stream.readStr(int(exchNameSize))
+    # routing-key
+    let keySize = stream.readUint8()
+    let routingKey = stream.readStr(int(keySize))
+
+    let messageCount = swapEndian(stream.readUint32())
+
+    debug "basic.get-ok", deliveryTag=deliveryTag, redelivered=redelivered, exchangeName=exchangeName, 
+                          routingKey=routingKey, messageCount=messageCount
+
+    let meta = ContentMetadata(
+        deliveryTag: deliveryTag, redelivered: redelivered, exchangeName: exchangeName, routingKey: routingKey,
+        messageCount: messageCount
+    )
+    chan.curContent = ContentData(header: AMQPContentHeader(), body: newStringStream(), metadata: meta)
+
+
+proc basicGetEmpty(chan: AMQPChannel) = 
+    ## Called when the server tells the consumer there's no messages in the queue
+    ## 
+    debug "got basic.get-empty"
+    let meta = ContentMetadata(messageCount: 0)
+    chan.curContent = ContentData(header: AMQPContentHeader(), body: newStringStream(), metadata: meta)
+
+
 proc basicAck*(chan: AMQPChannel, deliveryTag: uint64, multiple: bool = false) =
     ## Acknowledges one or more messages
     ## 
@@ -220,7 +279,6 @@ proc basicAck*(chan: AMQPChannel, deliveryTag: uint64, multiple: bool = false) =
 
     writeMethodInfo(stream, AMQP_CLASS_BASIC, uint16(80))
 
-    # exchange
     stream.write(swapEndian(deliveryTag))
     stream.write(uint8(multiple))
 
@@ -237,12 +295,32 @@ proc basicReject*(chan: AMQPChannel, deliveryTag: uint64, requeue: bool = false)
     ##
     let stream = newStringStream()
 
-    writeMethodInfo(stream, AMQP_CLASS_BASIC, uint16(80))
+    writeMethodInfo(stream, AMQP_CLASS_BASIC, uint16(90))
 
-    # exchange
     stream.write(swapEndian(deliveryTag))
     stream.write(uint8(requeue))
 
     debug "Sending basic.reject", deliveryTag=deliveryTag, requeue=requeue
     
     discard chan.frames.sender(chan, chan.constructMethodFrame(stream))
+
+
+proc basicRecover*(chan: AMQPChannel, requeue=true) =
+    ## Tells server to redeliver all unacked messages on the current channel
+    ## 
+    ## `requeue`: Server will attempt to requeue the messages instead of redelivering them to the original consumer
+    ##
+    let stream = newStringStream()
+
+    writeMethodInfo(stream, AMQP_CLASS_BASIC, uint16(110))
+
+    stream.write(uint8(requeue))
+
+    debug "Sending basic.recover", requeue=requeue
+    
+    discard chan.frames.sender(chan, chan.constructMethodFrame(stream), expectResponse=true)
+
+proc basicRecoverOk(chan: AMQPChannel) = 
+    ## Called when the server confirms a basic.recover call
+    ##
+    debug "got basic.recover-ok"

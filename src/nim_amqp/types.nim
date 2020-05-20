@@ -167,6 +167,7 @@ type
         redelivered*: bool
         exchangeName*: string
         routingKey*: string
+        messageCount*: uint32       # This is only set when using basic.get
 
     ContentData* = object
         header*: AMQPContentHeader
