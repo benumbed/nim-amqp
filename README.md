@@ -26,6 +26,7 @@ nimble install nim-amqp
 ### Simple Consumer
 ```nim
 import nim_amqp
+import strformat
 
 let exchangeName = "nim_amqp_consumer_test"
 let queueName = "nim_amqp_consumer"
@@ -38,7 +39,7 @@ chan.createAndBindQueue(queueName, exchangeName, routingKey)
 proc msgHandler(chan: AMQPChannel, message: ContentData) =
     ## Handle messages
     ##
-    warn "Got a message", contentType=message.header.propertyList.contentType, body=message.body.readAll()
+    echo fmt"Got a message! contentType: {message.header.propertyList.contentType}, body: {message.body.readAll()}"
 
     # This permanently removes the message from the queue
     chan.acknowledgeMessage(0, useChanContentTag=true)
