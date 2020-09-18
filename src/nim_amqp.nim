@@ -21,6 +21,8 @@ import nim_amqp/classes/channel
 import nim_amqp/classes/exchange
 import nim_amqp/classes/queue
 
+export types
+
 var channelTracking: Table[int, AMQPChannel]
 var nextChannel: int = 0
 var consumerLoopRunning = false
