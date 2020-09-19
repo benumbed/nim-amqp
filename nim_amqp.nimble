@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.5.0"
+version       = "0.6.0"
 author        = "Benumbed"
 description   = "Implementation of AMQP 0-9-1 in Nim"
 license       = "BSD-3-Clause"
