@@ -201,7 +201,7 @@ proc connectionTune*(chan: AMQPChannel) =
     if chan.conn.tuning.heartbeat == 0:
         chan.conn.tuning.heartbeat = heartbeat
 
-    info "connection.tune", channelMax=channelMax, frameMax=frameMax, heartbeat=heartbeat
+    debug "connection.tune", channelMax=channelMax, frameMax=frameMax, heartbeat=heartbeat
 
     chan.connectionTuneOk()
 

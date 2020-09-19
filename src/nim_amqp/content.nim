@@ -204,6 +204,9 @@ proc handleContentHeader*(chan: AMQPChannel) =
 
     if bodySize > 0:
         chan.frames.handler(chan)
+    # Fixes #3 -- Call the message callback event if the body is blank, since we recieved a content header
+    elif not isnil chan.messageCallback:
+        chan.messageCallback(chan, chan.curContent)
 
 
 proc handleContentBody*(chan: AMQPChannel) =
