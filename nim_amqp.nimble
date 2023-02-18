@@ -1,6 +1,6 @@
 # Package
 
-version         = "0.5.2"
+version         = "0.5.3"
 author          = "Nick Whalen"
 description     = "Implementation of AMQP 0-9-1 in Nim"
 license         = "BSD-3-Clause"
