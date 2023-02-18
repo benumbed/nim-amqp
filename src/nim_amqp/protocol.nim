@@ -53,9 +53,6 @@ proc newAMQPConnection*(host, username, password: string, port = 5672, connectTi
     result.maxReconnectAttempts = maxReconnectAttempts
 
     result.sock.send(wireAMQPVersion(result.meta.version))
-    # let sent = result.sock.trySend(wireAMQPVersion(result.meta.version))
-    # if not sent:
-    #     raise newException(AMQPVersionError, "Failed to send AMQP version string")
 
     # This is to make sure that the resulting data from the server is properly handled
     result.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).handleFrame

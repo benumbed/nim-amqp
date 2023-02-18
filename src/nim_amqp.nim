@@ -264,7 +264,7 @@ proc registerReturnedMessageHandler*(chan: AMQPChannel, callback: MessageReturnC
 
 
 proc startBlockingConsumer*(chan: AMQPChannel, queueName: string, noLocal: bool = true, noAck: bool = false,
-                    exclusive: bool = false, noWait: bool = false, reconnect=true) =
+                    exclusive: bool = false, noWait: bool = false, reconnect = true) =
     ## Starts a consumer process
     ## **NOTE**: This function enters a blocking loop, and will not return until the connection is terminated or CTRL+C\
     ##           is sent to the process.
@@ -320,24 +320,3 @@ proc startBlockingConsumer*(chan: AMQPChannel, queueName: string, noLocal: bool 
 proc startAsyncConsumer*(chan: AMQPChannel) =
     ## Starts an async-compatible consumer
     ##
-
-
-when isMainModule:
-    let exchangeName = "nim_amqp_consumer_test"
-    let queueName = "nim_amqp_consumer"
-    let routingKey = "consumer-test"
-
-    let chan = connect("localhost", "guest", "guest").createChannel()
-    chan.createExchange(exchangeName, "direct")
-    chan.createAndBindQueue(queueName, exchangeName, routingKey)
-
-    proc msgHandler(chan: AMQPChannel, message: ContentData) =
-        ## Handle messages
-        ##
-        warn "Got a message", contentType=message.header.propertyList.contentType, body=message.body.readAll()
-
-        # This permanently removes the message from the queue
-        chan.acknowledgeMessage(0, useChanContentTag=true)
-
-    chan.registerMessageHandler(msgHandler)
-    chan.startBlockingConsumer(queueName, noLocal=false)
