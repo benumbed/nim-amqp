@@ -1,6 +1,6 @@
 # Package
 
-version         = "0.5.3"
+version         = "0.5.6"
 author          = "Nick Whalen"
 description     = "Implementation of AMQP 0-9-1 in Nim"
 license         = "BSD-3-Clause"
@@ -17,6 +17,6 @@ task run_example, "Run example/demo code":
 # Dependencies
 
 requires "nim >= 1.0.6"
-requires "chronicles == 0.10.1"
+requires "chronicles ~= 0.10.1"
 
-taskRequires "run_example", "argparse == 4.0.1"
+taskRequires "run_example", "argparse ~= 4.0.1"
