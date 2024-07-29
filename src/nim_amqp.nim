@@ -7,8 +7,10 @@ import chronicles
 import net
 import streams
 import strformat
+import strutils
 import system
 import tables
+import uri
 
 import nim_amqp/content
 import nim_amqp/errors
@@ -48,6 +50,16 @@ proc connect*(host, username, password: string, vhost="/", port = 5672, tuning =
     ##
     result = newAMQPConnection(host, username, password, port, tuning=tuning, useTls=useTls)
     result.newAMQPChannel(number=0, frames.handleFrame, frames.sendFrame).connectionOpen(vhost)
+
+
+proc connect*(amqpUri: Uri, tuning = AMQPTuning()): AMQPConnection =
+  ## Creates a new AMQP connection from an AMQP URI
+  ##
+  ## amqpUri: URI which conforms with the AMQP URI standard
+  ##
+  ## tuning: AMQP tuning parameters, defaults to blank structure
+  ##
+  connect(amqpUri.hostname, amqpUri.username, amqpUri.password, amqpUri.path, amqpUri.port.parseInt)
 
 
 proc reconnect*(conn: AMQPConnection) =
