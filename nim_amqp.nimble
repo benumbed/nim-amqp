@@ -17,6 +17,6 @@ task run_example, "Run example/demo code":
 # Dependencies
 
 requires "nim >= 1.0.6"
-requires "chronicles == 0.10.1"
+requires "chronicles ~= 0.10.1"
 
-taskRequires "run_example", "argparse == 4.0.1"
+taskRequires "run_example", "argparse ~= 4.0.1"
