@@ -33,12 +33,12 @@ suite "AMQP Basic tests":
     test "Can start a consumer":
         let qName = "unit-test-basic-consume"
         chan.queueDeclare(qName, false, true, false, true, false)
-        chan.basicConsume(qName, "", false, false, false, false)
+        chan.basicConsume(qName, false, false, false, false)
 
     test "Can cancel a consumer":
         let qName = "unit-test-basic-consume-cancel"
         chan.queueDeclare(qName, false, true, false, true, false)
-        chan.basicConsume(qName, "consumer-cancel-test", false, false, false, false)
+        chan.basicConsume(qName, false, false, false, false)
         chan.basicCancel("consumer-cancel-test", false)
 
 chan.exchangeDelete("queue-tests-exchange", false, false)
