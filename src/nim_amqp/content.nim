@@ -73,7 +73,7 @@ proc populateProps(props: var AMQPBasicProperties, stream: Stream, flagId: int) 
             if swapEndian(stream.readUint32) != 0:
                 props.headers = stream.extractFieldTable
         of 12:
-            props.deliveryMode = stream.readUint8
+            props.deliveryMode = (DeliveryMode)stream.readUint8
         of 11:
             props.priority = stream.readUint8
         of 10:
@@ -139,7 +139,7 @@ proc toWire*(this: AMQPBasicProperties): (string, uint16) =
         stream.write(headers)
         flags = flags or (uint16(1) shl PROPERTY_ORDERING["headers"])
 
-    stream.writeUint(this.deliveryMode, "deliveryMode", flags)
+    stream.writeUint((uint8)this.deliveryMode, "deliveryMode", flags)
     stream.writeUint(this.priority, "priority", flags)
 
     stream.writeShortStr(this.correlationId, "correlationId", flags)

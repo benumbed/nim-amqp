@@ -23,7 +23,7 @@ suite "Content library tests (pub/sub)":
     test "Can consume a message from a queue":
         var props = AMQPBasicProperties()
         props.contentType = "application/json"
-        props.deliveryMode = 2
+        props.deliveryMode = Persistent
 
         let content = "{\"somekey\": \"someval\"}"
         chan.publish(content, exchName, routingKey, properties=props)
@@ -46,7 +46,7 @@ suite "Content library tests (pub/sub)":
     test "Can create a message to publish":
         var props = AMQPBasicProperties()
         props.contentType = "application/json"
-        props.deliveryMode = 2
+        props.deliveryMode = Persistent
         props.headers = FieldTable()
 
         var header = AMQPContentHeader()
@@ -80,7 +80,7 @@ suite "Content library tests (pub/sub)":
         #Send a test message
         var props = AMQPBasicProperties()
         props.contentType = "application/json"
-        props.deliveryMode = 2
+        props.deliveryMode = Persistent
         props.headers = FieldTable()
 
         var header = AMQPContentHeader()

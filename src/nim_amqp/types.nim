@@ -142,7 +142,7 @@ type
         contentType*: string         # MIME type
         contentEncoding*: string     # MIME encoding
         headers*: FieldTable
-        deliveryMode*: uint8         # non-persistent (1) or persistent (2)
+        deliveryMode*: DeliveryMode # non-persistent (1) or persistent (2)
         priority*: uint8 
         correlationId*: string
         replyTo*: string
@@ -153,6 +153,10 @@ type
         userId*: string
         appId*: string
         reserved*: string            # Must be empty
+
+    DeliveryMode* = enum
+        Transient = 1'u8,
+        Persistent = 2'u8
 
     AMQPContentHeader* = object
         classId*: uint16            # Not used when publishing data to the server (ignored)
