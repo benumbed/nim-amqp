@@ -59,7 +59,14 @@ proc connect*(amqpUri: Uri, tuning = AMQPTuning()): AMQPConnection =
   ##
   ## tuning: AMQP tuning parameters, defaults to blank structure
   ##
-  connect(amqpUri.hostname, amqpUri.username, amqpUri.password, amqpUri.path, amqpUri.port.parseInt, useTls = if amqpUri.scheme == "amqps": true else: false)
+  connect(
+    amqpUri.hostname,
+    amqpUri.username,
+    amqpUri.password,
+    amqpUri.path.strip(trailing = false, chars = {'/'}),
+    amqpUri.port.parseInt,
+    useTls = if amqpUri.scheme == "amqps": true else: false
+  )
 
 
 proc reconnect*(conn: AMQPConnection) =
